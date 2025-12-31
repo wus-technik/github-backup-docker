@@ -20,7 +20,7 @@ while :; do
       for u in $(echo $GITHUB_USER | tr "," "\n"); do
         echo "$(date) - execute backup for User ${u}, ${DATE}"
         OUTDIR="/srv/var/${DATE}/${u}"
-        ARCHIVE="/srv/var/${DATE}/${u}.tar.gz"
+        ARCHIVE="/srv/var/${DATE}/${DATE}_${u}.tar.gz"
 
         github-backup "${u}" --token="$TOKEN" --output-directory="$OUTDIR" ${BACKUP_OPTIONS}
 
@@ -38,7 +38,7 @@ while :; do
       for o in $(echo $GITHUB_ORG | tr "," "\n"); do
         echo "$(date) - execute backup for Organization ${o}, ${DATE}"
         OUTDIR="/srv/var/${DATE}/${o}"
-        ARCHIVE="/srv/var/${DATE}/${o}.tar.gz"
+        ARCHIVE="/srv/var/${DATE}/${DATE}_${o}.tar.gz"
 
         github-backup "${o}" --organization --token="$TOKEN" --output-directory="$OUTDIR" ${BACKUP_OPTIONS}
 
