@@ -1,0 +1,74 @@
+name: Build and Push Container
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "*" # we validate "semver without v" inside the workflow
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository (full history for tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute image tags
+        id: meta
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            # Manual: only push :sha
+            echo "tags=${IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Tag push: validate semver without "v" prefix
+          TAG="${GITHUB_REF_NAME}"
+
+          # Accept: 1.2.3, 1.2.3-rc.1, 1.2.3+build.5 (no leading v)
+          SEMVER_REGEX='^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$'
+          if [[ ! "$TAG" =~ $SEMVER_REGEX ]]; then
+            echo "Ref '$TAG' is not semver without 'v' prefix. Skipping."
+            # Exit successfully so the workflow doesn't look "broken" for non-matching tags
+            exit 0
+          fi
+
+          # Determine highest semver tag in repo and only then also push :latest
+          git fetch --tags --force
+
+          # Filter semver tags (no leading v), then version-sort
+          LATEST_TAG="$(git tag -l \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$' \
+            | sort -V \
+            | tail -n 1)"
+
+          if [[ "$TAG" == "$LATEST_TAG" ]]; then
+            echo "tags=${IMAGE}:${TAG},${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=${IMAGE}:${TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # build-push-action expects newline-separated tags; we convert comma list -> newline
+          tags: ${{ join(fromJSON(format('["{0}"]', replace(steps.meta.outputs.tags, ',', '","'))), '\n') }}
