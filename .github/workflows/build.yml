@@ -46,9 +46,9 @@ jobs:
             exit 0
           fi
 
-          SEMVER_REGEX='^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$'
-          if [[ ! "$TAG" =~ $SEMVER_REGEX ]]; then
-            echo "TAG did NOT match semver regex -> skipping"
+          # Accept semver-like tags: X.Y.Z with optional -prerelease or +build
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$ ]]; then
+            echo "TAG did NOT match semver -> skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
