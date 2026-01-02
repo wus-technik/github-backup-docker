@@ -6,7 +6,14 @@ RUN apk add --no-cache \
     python3 \
     py3-pip
 
-RUN python3 -m pip install --no-cache-dir github-backup
+# Create venv, install, then remove pip
+RUN python3 -m venv /opt/venv \
+ && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+ && /opt/venv/bin/pip install --no-cache-dir github-backup \
+ && apk del py3-pip
+
+# Use venv by default
+ENV PATH="/opt/venv/bin:$PATH"
 
 COPY exec.sh /srv/exec.sh
 RUN chmod +x /srv/exec.sh
