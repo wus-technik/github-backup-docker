@@ -37,6 +37,7 @@ jobs:
 
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
+          # Manual runs: tag with the commit SHA only
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             {
               echo "tags<<EOF"
@@ -47,7 +48,7 @@ jobs:
           fi
 
           # Accept semver-like tags: X.Y.Z with optional -prerelease or +build
-          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$ ]]; then
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
             echo "TAG did NOT match semver -> skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -56,7 +57,7 @@ jobs:
           git fetch --tags --force
 
           LATEST_TAG="$(git tag -l \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$' \
             | sort -V \
             | tail -n 1)"
 
