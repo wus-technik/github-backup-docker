@@ -67,6 +67,17 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Debug env
+        run: |
+          echo "event=${GITHUB_EVENT_NAME}"
+          echo "ref=${GITHUB_REF}"
+          echo "ref_name=${GITHUB_REF_NAME}"
+
+      - name: Debug meta outputs
+        run: |
+          echo "skip='${{ steps.meta.outputs.skip }}'"
+          echo "tags='${{ steps.meta.outputs.tags }}'"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
