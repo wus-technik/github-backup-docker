@@ -24,7 +24,17 @@ jobs:
         id: meta
         shell: bash
         run: |
+          set -euo pipefail
+
           IMAGE="ghcr.io/${GITHUB_REPOSITORY}"
+          TAG="${GITHUB_REF_NAME}"
+
+          echo "GITHUB_EVENT_NAME=${GITHUB_EVENT_NAME}"
+          echo "GITHUB_REF=${GITHUB_REF}"
+          echo "GITHUB_REF_NAME=${GITHUB_REF_NAME}"
+          echo "IMAGE=${IMAGE}"
+          echo "TAG=${TAG}"
+
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
@@ -36,11 +46,9 @@ jobs:
             exit 0
           fi
 
-          TAG="${GITHUB_REF_NAME}"
-
-          # semver without v prefix
           SEMVER_REGEX='^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$'
           if [[ ! "$TAG" =~ $SEMVER_REGEX ]]; then
+            echo "TAG did NOT match semver regex -> skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -51,6 +59,8 @@ jobs:
             | grep -E '^[0-9]+\.[0-9]+\.[0-9]+([\-+][0-9A-Za-z.\-]+)?$' \
             | sort -V \
             | tail -n 1)"
+
+          echo "LATEST_TAG=${LATEST_TAG}"
 
           if [[ "$TAG" == "$LATEST_TAG" ]]; then
             {
