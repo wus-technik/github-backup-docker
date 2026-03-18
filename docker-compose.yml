@@ -1,5 +1,3 @@
-version: "2"
-
 services:
   github-backup:
     build: .
@@ -15,7 +13,8 @@ services:
         max-file: "5"
 
     environment:
-      - GITHUB_USER
+      - GITHUB_USER=        # comma-separated GitHub usernames, e.g. myuser,anotheruser
+      - GITHUB_ORG=         # comma-separated GitHub orgs (token must have org access)
       - TOKEN=${GITHUB_ACCESS_TOKEN}
       - MAX_BACKUPS=10
       - TIME_ZONE=America/Chicago

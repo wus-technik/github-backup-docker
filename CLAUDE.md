@@ -24,7 +24,7 @@ docker build .
 The project consists of three files:
 
 - **`Dockerfile`** — Alpine-based image that installs `github-backup` via pip and copies `exec.sh` as the entrypoint
-- **`exec.sh`** — The entire application logic: sets timezone, loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org, then prunes old backups using `ls | head -n -$MAX_BACKUPS | xargs rm -rf`. **Known bug:** line 31 logs `${u}` (user variable) instead of `${o}` when backing up orgs — harmless but produces misleading log output.
+- **`exec.sh`** — The entire application logic: sets timezone, writes the token to a temp file (to avoid process-list exposure), loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org with exit-code checking, then prunes old backups using `ls | head -n -$MAX_BACKUPS | xargs -r rm -rf` (only when backups exist).
 - **`docker-compose.yml`** — Reference configuration showing all supported environment variables
 
 ## Environment Variables

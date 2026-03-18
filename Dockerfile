@@ -1,7 +1,7 @@
-FROM alpine:3.15
+FROM alpine:3.19
 
-RUN apk add --update --no-cache tzdata git python3 py-pip tzdata
-RUN pip3 install github-backup && github-backup -v
+RUN apk add --update --no-cache tzdata git python3 py3-pip
+RUN pip3 install --break-system-packages github-backup==0.102.0 && github-backup -v
 COPY exec.sh /srv/exec.sh
 RUN chmod +x /srv/exec.sh
-CMD ["/srv/exec.sh"]
+ENTRYPOINT ["/srv/exec.sh"]
