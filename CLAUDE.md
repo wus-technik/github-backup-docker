@@ -23,7 +23,7 @@ docker build .
 
 The project consists of three files:
 
-- **`Dockerfile`** — Alpine-based image that installs `github-backup` via pip and copies `exec.sh` as the entrypoint
+- **`Dockerfile`** — Alpine (`alpine:3.19`) image that installs `github-backup==0.102.0` via pip3 and sets `exec.sh` as the entrypoint. Update the pinned version here when upgrading.
 - **`exec.sh`** — The entire application logic: sets timezone, writes the token to a temp file (to avoid process-list exposure), loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org with exit-code checking, then prunes old backups using `ls | head -n -$MAX_BACKUPS | xargs -r rm -rf` (only when backups exist).
 - **`docker-compose.yml`** — Reference configuration showing all supported environment variables
 
@@ -34,11 +34,9 @@ The project consists of three files:
 | `TOKEN` | required | GitHub personal access token (needs `repo` scope) |
 | `GITHUB_USER` | — | Comma-separated GitHub usernames to back up |
 | `GITHUB_ORG` | — | Comma-separated GitHub organizations to back up (token must have org access) |
-| `MAX_BACKUPS` | — | Number of backup snapshots to retain |
+| `MAX_BACKUPS` | `10` | Number of backup snapshots to retain |
 | `TIME_ZONE` | `UTC` | Timezone string (e.g. `America/Chicago`) |
 | `BACKUP_OPTIONS` | `--all --private --gists` | Flags passed directly to `github-backup` |
-
-> **Warning:** `MAX_BACKUPS` has no fallback default. If unset, the cleanup command (`ls | head -n -`) will behave unpredictably and may delete all backups.
 
 Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container. Mount a volume at `/srv/var` to persist them.
 
