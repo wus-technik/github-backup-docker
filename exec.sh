@@ -30,10 +30,19 @@ fi
 cp /usr/share/zoneinfo/"${TIME_ZONE}" /etc/localtime
 echo "${TIME_ZONE}" >/etc/timezone
 
-# Write token to a temp file to avoid exposing it in the process list
+# Write token to a temp file to avoid exposing it in the process list.
+# github-backup reads the first line when the value is a file:// URI.
 TOKEN_FILE=$(mktemp)
 echo "${TOKEN}" > "${TOKEN_FILE}"
 chmod 600 "${TOKEN_FILE}"
+
+# Fine-grained tokens must go through --token-fine; anything else is a classic
+# PAT/OAuth token and belongs on --token.
+case "${TOKEN}" in
+    github_pat_*) TOKEN_FLAG="--token-fine" ;;
+    *)            TOKEN_FLAG="--token" ;;
+esac
+echo "token flag=${TOKEN_FLAG}"
 
 cleanup_token() {
     rm -f "${TOKEN_FILE}"
@@ -158,7 +167,7 @@ run_backup() {
     echo "$(date) - execute backup for ${entity_type} ${entity}, ${run_date}" | tee -a "${log_file}"
 
     # shellcheck disable=SC2086
-    { github-backup "${entity}" ${organization_flag} --token-file="${TOKEN_FILE}" --output-directory="${output_directory}" ${BACKUP_OPTIONS}; echo "$?" > "${rc_file}"; } 2>&1 | tee -a "${log_file}"
+    { github-backup "${entity}" ${organization_flag} "${TOKEN_FLAG}=file://${TOKEN_FILE}" --output-directory="${output_directory}" ${BACKUP_OPTIONS}; echo "$?" > "${rc_file}"; } 2>&1 | tee -a "${log_file}"
     rc=$(cat "${rc_file}")
     rm -f "${rc_file}"
 

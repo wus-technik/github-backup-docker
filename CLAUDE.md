@@ -23,11 +23,12 @@ docker build .
 
 ## Architecture
 
-The project consists of three files:
+The project consists of four files:
 
 - **`Dockerfile`** — Alpine (`alpine:3.23`) image that installs `github-backup==0.65.1` into a virtualenv at `/opt/venv` (Alpine's Python is externally managed) and sets `exec.sh` as the entrypoint. Update the pinned version here when upgrading.
-- **`exec.sh`** — The entire application logic: sets timezone, writes the token to a temp file (to avoid process-list exposure), loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org with per-run logs and exit-code checking, optionally sends Teams/Power Automate notifications, then prunes old timestamped backups and logs.
+- **`exec.sh`** — The entire application logic: sets timezone, writes the token to a temp file and passes it as `--token=file://…` / `--token-fine=file://…` depending on the token prefix (to avoid process-list exposure), loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org with per-run logs and exit-code checking, optionally sends Teams/Power Automate notifications, then prunes old timestamped backups and logs.
 - **`docker-compose.yml`** — Reference configuration showing all supported environment variables
+- **`ci/smoke-test.sh`** — Runs the built image with a dummy token against a non-existent user and asserts the failure is a *credential* error, not an argparse error. This is the only check that exercises the real `github-backup` binary with the arguments `exec.sh` actually builds — a wrong flag is invisible to `shellcheck`, `sh -n` and `docker build`.
 
 ## Environment Variables
 
@@ -48,7 +49,7 @@ Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container
 
 Two workflows:
 
-- **`.github/workflows/ci.yml`** — on every push/PR: shellcheck + `sh -n` on `exec.sh`, compose validation, and a Docker image build.
+- **`.github/workflows/ci.yml`** — on every push/PR: shellcheck + `sh -n` on `exec.sh` and `ci/smoke-test.sh`, compose validation, a Docker image build, and `ci/smoke-test.sh` against the built image.
 - **`.github/workflows/build.yml`** — publishes multi-arch images (`linux/amd64`, `linux/arm/v7`, `linux/arm64`) to `ghcr.io/wus-technik/github-backup-docker`:
 
 | Trigger | Image tags |
@@ -58,5 +59,7 @@ Two workflows:
 | push of a non-semver tag | nothing (build skipped) |
 | manual dispatch on a tag | same as pushing that tag (lets `:stable` be re-minted without re-tagging) |
 | manual dispatch on a branch | `:<full commit sha>` |
+
+Every publishing run first builds a `linux/amd64` image and gates the push on `ci/smoke-test.sh`.
 
 `:latest` tracks `master` and is therefore a staging tag. Production deployments should pin `:stable` (as `docker-compose.yml` does) or an explicit version.

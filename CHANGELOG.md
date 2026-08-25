@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.2] - 2026-08-25
+
+### Fixed
+- **Critical:** Every backup run since 1.2.0 aborted immediately. `exec.sh` passed the token as `--token-file=<path>`, a flag `python-github-backup` has never had; argparse exited with code 2 before a single repository was cloned. The token file is now passed as a `file://` URI on the flag the tool actually provides (`--token` for classic PATs/OAuth tokens, `--token-fine` for `github_pat_*` tokens, selected from the token prefix).
+
+### Added
+- `ci/smoke-test.sh`: runs the built image with a dummy token and verifies that `github-backup` rejects the *credential* rather than the *arguments*. Wired into `ci.yml` after the image build and into `build.yml` as a gate before any image is pushed, so a broken invocation can no longer reach `:latest` or `:stable`.
+
 ## [1.2.1] - 2026-08-25
 
 ### Changed

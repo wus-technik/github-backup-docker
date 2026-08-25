@@ -18,10 +18,12 @@ jobs:
         sudo apt-get install -y shellcheck
 
     - name: check shell syntax
-      run: sh -n exec.sh
+      run: |
+        sh -n exec.sh
+        sh -n ci/smoke-test.sh
 
     - name: lint shell scripts
-      run: shellcheck exec.sh
+      run: shellcheck exec.sh ci/smoke-test.sh
 
     - name: validate compose file
       env:
@@ -33,3 +35,6 @@ jobs:
 
     - name: build docker image
       run: docker build --pull --tag github-backup-docker:test .
+
+    - name: smoke test built image
+      run: ./ci/smoke-test.sh github-backup-docker:test
