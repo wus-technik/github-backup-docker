@@ -48,6 +48,13 @@ If the `tar` run fails, the directory is kept and the failure is logged.
 
 - [github packages](https://github.com/orgs/wus-technik/packages/container/package/github-backup-docker)
 
+| Tag | Content |
+|---|---|
+| `stable` | the newest released version — **use this in production** |
+| `X.Y.Z` | a specific release |
+| `latest` | the current state of `master` (staging, may be unreleased) |
+| `master-<sha>` | a specific `master` build |
+
 ## Upstream
 
 This project is based on [umputun/github-backup-docker](https://github.com/umputun/github-backup-docker). Keep upstream references when carrying forward fixes or attribution.

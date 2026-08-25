@@ -49,4 +49,13 @@ Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container
 Two workflows:
 
 - **`.github/workflows/ci.yml`** — on every push/PR: shellcheck + `sh -n` on `exec.sh`, compose validation, and a Docker image build.
-- **`.github/workflows/build.yml`** — on semver tags (`X.Y.Z`) and manual dispatch: pushes multi-arch images (`linux/amd64`, `linux/arm/v7`, `linux/arm64`) to `ghcr.io/wus-technik/github-backup-docker`. The highest semver tag also gets `:latest`; manual runs are tagged with the commit SHA.
+- **`.github/workflows/build.yml`** — publishes multi-arch images (`linux/amd64`, `linux/arm/v7`, `linux/arm64`) to `ghcr.io/wus-technik/github-backup-docker`:
+
+| Trigger | Image tags |
+|---|---|
+| push to `master` | `:latest`, `:master-<short sha>` |
+| push of a semver tag `X.Y.Z` | `:X.Y.Z`, plus `:stable` if it is the highest semver tag |
+| push of a non-semver tag | nothing (build skipped) |
+| manual dispatch | `:<full commit sha>` |
+
+`:latest` tracks `master` and is therefore a staging tag. Production deployments should pin `:stable` (as `docker-compose.yml` does) or an explicit version.

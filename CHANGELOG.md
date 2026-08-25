@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **Breaking for image consumers:** `:latest` now tracks `master` (staging) instead of the newest release. The newest release is published as `:stable`, and `docker-compose.yml` has been repointed to `:stable`. Pin `:stable` or an explicit version for production.
+- Pushes to `master` now publish images (`:latest` and `:master-<short sha>`); previously only tags did
+
 ## [1.2.0] - 2026-08-25
 
 ### Added

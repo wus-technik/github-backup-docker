@@ -3,6 +3,8 @@ name: Build and Push Container
 on:
   workflow_dispatch:
   push:
+    branches:
+      - master
     tags:
       - "*"
 
@@ -28,26 +30,36 @@ jobs:
 
           IMAGE="ghcr.io/${GITHUB_REPOSITORY}"
           TAG="${GITHUB_REF_NAME}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
 
           echo "GITHUB_EVENT_NAME=${GITHUB_EVENT_NAME}"
           echo "GITHUB_REF=${GITHUB_REF}"
           echo "GITHUB_REF_NAME=${GITHUB_REF_NAME}"
           echo "IMAGE=${IMAGE}"
-          echo "TAG=${TAG}"
 
-          echo "skip=false" >> "$GITHUB_OUTPUT"
+          emit_tags() {
+            {
+              echo "skip=false"
+              echo "tags<<TAGS_EOF"
+              printf '%s\n' "$@"
+              echo "TAGS_EOF"
+            } >> "$GITHUB_OUTPUT"
+            echo "resolved tags: $*"
+          }
 
           # Manual runs: tag with the commit SHA only
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            {
-              echo "tags<<EOF"
-              echo "${IMAGE}:${GITHUB_SHA}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            emit_tags "${IMAGE}:${GITHUB_SHA}"
             exit 0
           fi
 
-          # Accept semver-like tags: X.Y.Z with optional -prerelease or +build
+          # Staging: every push to master moves :latest
+          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            emit_tags "${IMAGE}:latest" "${IMAGE}:master-${SHORT_SHA}"
+            exit 0
+          fi
+
+          # Releases: accept semver-like tags X.Y.Z with optional -prerelease or +build
           if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
             echo "TAG did NOT match semver -> skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -63,19 +75,11 @@ jobs:
 
           echo "LATEST_TAG=${LATEST_TAG}"
 
+          # Only the highest semver tag carries :stable
           if [[ "$TAG" == "$LATEST_TAG" ]]; then
-            {
-              echo "tags<<EOF"
-              echo "${IMAGE}:${TAG}"
-              echo "${IMAGE}:latest"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            emit_tags "${IMAGE}:${TAG}" "${IMAGE}:stable"
           else
-            {
-              echo "tags<<EOF"
-              echo "${IMAGE}:${TAG}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
+            emit_tags "${IMAGE}:${TAG}"
           fi
 
       - name: Set up QEMU
