@@ -27,6 +27,29 @@ else
     echo "notifications=disabled"
 fi
 
+# Fail fast on invalid configuration instead of burning a run cycle on it
+if [ -z "${TOKEN:-}" ]; then
+    echo "ERROR: TOKEN is not set" >&2
+    exit 1
+fi
+
+case "${MAX_BACKUPS}" in
+    0 | *[!0-9]*)
+        echo "ERROR: MAX_BACKUPS must be a positive integer (got '${MAX_BACKUPS}')" >&2
+        exit 1
+        ;;
+esac
+
+if [ ! -f "/usr/share/zoneinfo/${TIME_ZONE}" ]; then
+    echo "ERROR: unknown TIME_ZONE '${TIME_ZONE}'" >&2
+    exit 1
+fi
+
+# Substrings marking a soft failure: successful exit, but some repositories
+# were skipped. Shared by has_soft_failures (warning detection) and the
+# notification card (matched lines).
+SOFT_FAILURE_MARKERS='is unavailable|repository not accessible|returned 128|Pull requests are disabled'
+
 cp /usr/share/zoneinfo/"${TIME_ZONE}" /etc/localtime
 echo "${TIME_ZONE}" >/etc/timezone
 
@@ -70,6 +93,7 @@ notify_teams() {
     export NOTIFY_RUN_DATE="${run_date}"
     export NOTIFY_EXIT_CODE="${exit_code}"
     export NOTIFY_LOG_FILE="${log_file}"
+    export NOTIFY_SOFT_FAILURE_MARKERS="${SOFT_FAILURE_MARKERS}"
 
     python3 <<'PY'
 import json
@@ -85,9 +109,11 @@ run_date = os.environ["NOTIFY_RUN_DATE"]
 exit_code = os.environ["NOTIFY_EXIT_CODE"]
 log_file = os.environ["NOTIFY_LOG_FILE"]
 webhook_url = os.environ["NOTIFY_WEBHOOK_URL"]
+# Same markers the shell uses to detect soft failures, plus "ERROR" and
+# "Traceback", which are always worth showing in the card.
+markers = os.environ["NOTIFY_SOFT_FAILURE_MARKERS"].split("|") + ["ERROR", "Traceback"]
 
 def read_matching_lines(path):
-    markers = ("ERROR", "Traceback", "is unavailable", "repository not accessible", "returned 128", "Pull requests are disabled")
     lines = []
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
@@ -150,7 +176,7 @@ PY
 
 has_soft_failures() {
     log_file=$1
-    grep -E 'is unavailable|Skipping .*repository not accessible|returned 128|Pull requests are disabled' "${log_file}" >/dev/null 2>&1
+    grep -E "${SOFT_FAILURE_MARKERS}" "${log_file}" >/dev/null 2>&1
 }
 
 run_backup() {
@@ -193,10 +219,23 @@ cleanup_old_backups() {
     if [ -d "${VAR_DIR}" ] && [ "$(find "${VAR_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' 2>/dev/null)" ]; then
         find "${VAR_DIR}" -mindepth 1 -maxdepth 1 -type d -name '20*' | sort | head -n "-${MAX_BACKUPS}" | xargs -r rm -rf
     fi
+}
 
-    if [ -d "${LOG_DIR}" ] && [ "$(find "${LOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name '*.log' 2>/dev/null)" ]; then
-        find "${LOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name '*.log' | sort | head -n "-${MAX_BACKUPS}" | xargs -r rm -f
-    fi
+cleanup_old_logs() {
+    [ -d "${LOG_DIR}" ] || return 0
+
+    # Log names start with the run date (YYYYMMDD-HHMMSS, 15 chars). Group by
+    # run date so log retention matches backup retention, no matter how many
+    # entities produce a log per run.
+    find "${LOG_DIR}" -mindepth 1 -maxdepth 1 -type f -name '*.log' 2>/dev/null \
+        | while read -r log_file; do
+              basename "${log_file}" | cut -c1-15
+          done \
+        | sort -u \
+        | head -n "-${MAX_BACKUPS}" \
+        | while read -r stale_run; do
+              rm -f -- "${LOG_DIR}/${stale_run}"_*.log
+          done
 }
 
 echo "$(date) - start backup scheduler"
@@ -226,8 +265,12 @@ while :; do
 
         echo "$(date) - cleanup"
         cleanup_old_backups
+        cleanup_old_logs
     fi
 
     echo "$(date) - sleep for 1 day"
-    sleep 1d
+    # Backgrounded so the INT/TERM trap fires immediately; a foreground
+    # sleep would defer the trap until the sleep finishes.
+    sleep 86400 &
+    wait $!
 done
