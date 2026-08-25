@@ -1,7 +1,7 @@
 services:
   github-backup:
     build: .
-    image: ghcr.io/umputun/github-backup-docker:latest
+    image: ghcr.io/wus-technik/github-backup-docker:latest
     container_name: "github-backup"
     hostname: "github-backup"
     restart: always

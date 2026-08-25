@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Dockerized wrapper around [python-github-backup](https://github.com/josegonzalez/python-github-backup) that runs daily backups of GitHub users and/or organizations, retaining a configurable number of backup snapshots.
 
+This fork is owned and maintained by `wus-technik`. Keep attribution and provenance references to the upstream project, `umputun/github-backup-docker`.
+
 ## Key Commands
 
 ```bash
@@ -43,4 +45,4 @@ Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`) builds the Docker image on every push/PR. On pushes to `master` or tags, it pushes multi-arch images (`linux/amd64`, `linux/arm/v7`, `linux/arm64`) to both `ghcr.io/umputun/github-backup-docker` and Docker Hub.
+GitHub Actions (`.github/workflows/ci.yml`) builds the Docker image on every push/PR. On pushes to `master` or tags, it pushes multi-arch images (`linux/amd64`, `linux/arm/v7`, `linux/arm64`) to `ghcr.io/wus-technik/github-backup-docker`.

@@ -1,6 +1,8 @@
-# github-backup-docker [![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/r/umputun/github-backup/)
+# github-backup-docker
 
 Dockerized version of [python-github-backup](https://github.com/josegonzalez/python-github-backup) with extra automation. This container makes a backup daily and keeps up to defined number of backups.
+
+This fork is maintained by [wus-technik](https://github.com/wus-technik) and keeps upstream provenance with [umputun/github-backup-docker](https://github.com/umputun/github-backup-docker).
 
 ## Install and run
 
@@ -38,8 +40,11 @@ BACKUP_OPTIONS=--private --repositories
 
 ## Prepared images
 
-- [docker hub](https://hub.docker.com/r/umputun/github-backup-docker/tags)
-- [github packages](https://github.com/umputun/github-backup-docker/pkgs/container/github-backup-docker)
+- [github packages](https://github.com/orgs/wus-technik/packages/container/package/github-backup-docker)
+
+## Upstream
+
+This project is based on [umputun/github-backup-docker](https://github.com/umputun/github-backup-docker). Keep upstream references when carrying forward fixes or attribution.
 
 ## Build from the source
 
