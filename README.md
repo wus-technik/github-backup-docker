@@ -143,9 +143,10 @@ image and runs `ci/smoke-test.sh` against it — the one check that exercises th
 
 ## Upstream
 
-This fork is maintained by [wus-technik](https://github.com/wus-technik) and is based on
-[umputun/github-backup-docker](https://github.com/umputun/github-backup-docker).
-Upstream references and attribution are kept when carrying forward fixes.
+This fork is maintained by [wus-technik](https://github.com/wus-technik) and started out
+from [umputun/github-backup-docker](https://github.com/umputun/github-backup-docker).
+The upstream project is not actively tracked anymore, but provenance references and
+attribution are kept.
 
 ---
 
