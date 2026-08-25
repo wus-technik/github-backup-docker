@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 - Base image updated to `alpine:3.23`; `github-backup` is now installed into a virtualenv at `/opt/venv` instead of using `pip install --break-system-packages`
+- All GitHub Actions bumped to their Node.js 24 majors (`actions/checkout@v7`, `docker/setup-qemu-action@v4`, `docker/setup-buildx-action@v4`, `docker/login-action@v4`, `docker/build-push-action@v7`); Node.js 20 is deprecated on GitHub-hosted runners
 - Release images are built by `.github/workflows/build.yml` on semver tags and manual dispatch (multi-arch, `:latest` for the highest semver tag) using the built-in `GITHUB_TOKEN`; `ci.yml` is now lint/build verification only and no longer publishes
 
 ### Fixed
