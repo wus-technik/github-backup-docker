@@ -2,11 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.2.1] - 2026-08-25
 
 ### Changed
 - **Breaking for image consumers:** `:latest` now tracks `master` (staging) instead of the newest release. The newest release is published as `:stable`, and `docker-compose.yml` has been repointed to `:stable`. Pin `:stable` or an explicit version for production.
 - Pushes to `master` now publish images (`:latest` and `:master-<short sha>`); previously only tags did
+- A manual `workflow_dispatch` on a semver tag now resolves the same image tags as pushing that tag
+
+Runtime content (`Dockerfile`, `exec.sh`) is identical to 1.2.0; this release exists to publish the new tag scheme.
 
 ## [1.2.0] - 2026-08-25
 
