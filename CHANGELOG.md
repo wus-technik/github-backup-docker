@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.2.0] - 2026-08-25
 
 ### Added
 - `COMPRESSION` environment variable: when set, each finished snapshot is packed into `<TIMESTAMP>_<entity>.tar.gz` and the uncompressed directory is removed (merged from the wus-technik line of development)
