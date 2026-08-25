@@ -11,6 +11,17 @@ Dockerized version of [python-github-backup](https://github.com/josegonzalez/pyt
 5. Set `GITHUB_USER` (Github user accounts) and/or `GITHUB_ORG` (Github Organizations; make sure the user token has access to the organization). If you have multiple users/organizations, you can list thme separating names by a comma.
 6. Run `docker-compose up -d` to initiate daily backup 
 
+## Monitoring and notifications
+
+Each backup run writes an entity-specific log file under `/srv/var/logs/`.
+
+Set `NOTIFY_WEBHOOK_URL` to a Teams/Power Automate webhook URL to get notifications when:
+
+- `github-backup` exits with a non-zero code
+- the run exits successfully but logs soft-failure markers such as unavailable repositories, inaccessible repositories, git return code `128`, or disabled pull requests
+
+Clean runs stay silent. Do not commit webhook URLs or GitHub tokens; provide them through the live stack environment.
+
 ## Customize Backup Options
 
 The underlying [python-github-backup](https://github.com/josegonzalez/python-github-backup) library [has a lot of options](https://github.com/josegonzalez/python-github-backup#usage) to customize what is backed up from github. 
@@ -22,6 +33,8 @@ If you wanted to customize this to only backup the repository code (including pr
 ```
 BACKUP_OPTIONS=--private --repositories
 ```
+
+`NOTIFY_WEBHOOK_URL` can also be set in the environment to send Teams/Power Automate cards for failed or warning runs.
 
 ## Prepared images
 

@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Important:** `exec.sh` now writes per-run logs under `/srv/var/logs`, sends optional Teams/Power Automate failure notifications on non-zero `github-backup` exits, and sends warning notifications for known soft-failure log markers
+- **Important:** `exec.sh` now exits after cleaning up the token file on `INT`/`TERM` instead of continuing the scheduler loop
+- **Important:** Backup cleanup now prunes timestamped backup directories and log files separately, preserving `/srv/var/logs` from snapshot cleanup
 - **Critical:** Wrong variable `${u}` in org backup log (was printing user var instead of org var `${o}`)
 - **Critical:** `MAX_BACKUPS` now has a default of `10` in `exec.sh`; pruning is guarded so it only runs when backups exist and uses `xargs -r` to prevent `rm -rf` with no arguments
 - **Critical:** GitHub token no longer passed as a command-line argument (visible in `ps aux`); it is written to a temp file and passed via `--token-file`, cleaned up on exit
@@ -14,7 +17,7 @@ All notable changes to this project are documented in this file.
 - **Important:** Quoted all variable expansions in `exec.sh` to prevent word-splitting and glob issues
 - **Important:** Updated base image from EOL `alpine:3.15` to `alpine:3.19`
 - **Important:** Fixed `py-pip` → `py3-pip` and removed duplicate `tzdata` in `Dockerfile`
-- **Important:** Pinned `github-backup` to version `0.102.0` in `Dockerfile`
+- **Important:** Pinned `github-backup` to version `0.65.1` in `Dockerfile`
 - **Minor:** Removed deprecated `version: "2"` key from `docker-compose.yml`
 - **Minor:** Added inline comments to `docker-compose.yml` for `GITHUB_USER` and `GITHUB_ORG` to guide first-time setup
 - **Minor:** Updated GitHub Actions to current versions: `checkout@v4`, `setup-qemu-action@v3`, `setup-buildx-action@v3`

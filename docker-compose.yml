@@ -19,5 +19,6 @@ services:
       - MAX_BACKUPS=10
       - TIME_ZONE=America/Chicago
       - BACKUP_OPTIONS=--all --private --gists
+      - NOTIFY_WEBHOOK_URL= # optional Teams/Power Automate webhook for failure and warning notifications
     volumes:
       - ./var:/srv/var

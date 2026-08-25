@@ -23,8 +23,8 @@ docker build .
 
 The project consists of three files:
 
-- **`Dockerfile`** — Alpine (`alpine:3.19`) image that installs `github-backup==0.102.0` via pip3 and sets `exec.sh` as the entrypoint. Update the pinned version here when upgrading.
-- **`exec.sh`** — The entire application logic: sets timezone, writes the token to a temp file (to avoid process-list exposure), loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org with exit-code checking, then prunes old backups using `ls | head -n -$MAX_BACKUPS | xargs -r rm -rf` (only when backups exist).
+- **`Dockerfile`** — Alpine (`alpine:3.19`) image that installs `github-backup==0.65.1` via pip3 and sets `exec.sh` as the entrypoint. Update the pinned version here when upgrading.
+- **`exec.sh`** — The entire application logic: sets timezone, writes the token to a temp file (to avoid process-list exposure), loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org with per-run logs and exit-code checking, optionally sends Teams/Power Automate notifications, then prunes old timestamped backups and logs.
 - **`docker-compose.yml`** — Reference configuration showing all supported environment variables
 
 ## Environment Variables
@@ -37,8 +37,9 @@ The project consists of three files:
 | `MAX_BACKUPS` | `10` | Number of backup snapshots to retain |
 | `TIME_ZONE` | `UTC` | Timezone string (e.g. `America/Chicago`) |
 | `BACKUP_OPTIONS` | `--all --private --gists` | Flags passed directly to `github-backup` |
+| `NOTIFY_WEBHOOK_URL` | — | Optional Teams/Power Automate webhook for failure and warning cards |
 
-Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container. Mount a volume at `/srv/var` to persist them.
+Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container. Per-run logs are stored at `/srv/var/logs/`. Mount a volume at `/srv/var` to persist them.
 
 ## CI/CD
 
