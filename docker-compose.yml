@@ -20,5 +20,6 @@ services:
       - TIME_ZONE=America/Chicago
       - BACKUP_OPTIONS=--all --private --gists
       - NOTIFY_WEBHOOK_URL= # optional Teams/Power Automate webhook for failure and warning notifications
+      - COMPRESSION=        # set to any non-empty value to tar.gz each snapshot
     volumes:
       - ./var:/srv/var

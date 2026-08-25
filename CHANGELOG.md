@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `COMPRESSION` environment variable: when set, each finished snapshot is packed into `<TIMESTAMP>_<entity>.tar.gz` and the uncompressed directory is removed (merged from the wus-technik line of development)
+
+### Changed
+- Base image updated to `alpine:3.23`; `github-backup` is now installed into a virtualenv at `/opt/venv` instead of using `pip install --break-system-packages`
+- Release images are built by `.github/workflows/build.yml` on semver tags and manual dispatch (multi-arch, `:latest` for the highest semver tag) using the built-in `GITHUB_TOKEN`; `ci.yml` is now lint/build verification only and no longer publishes
+
 ### Fixed
 - **Important:** `exec.sh` now writes per-run logs under `/srv/var/logs`, sends optional Teams/Power Automate failure notifications on non-zero `github-backup` exits, and sends warning notifications for known soft-failure log markers
 - **Important:** `exec.sh` now exits after cleaning up the token file on `INT`/`TERM` instead of continuing the scheduler loop
@@ -15,7 +22,7 @@ All notable changes to this project are documented in this file.
 - **Important:** Added exit-code checks on `github-backup` invocations; failures are logged instead of silently ignored
 - **Important:** Pruning block moved inside the backup guard so it does not run when no entities are configured
 - **Important:** Quoted all variable expansions in `exec.sh` to prevent word-splitting and glob issues
-- **Important:** Updated base image from EOL `alpine:3.15` to `alpine:3.19`
+- **Important:** Updated base image from EOL `alpine:3.15` to a current Alpine release
 - **Important:** Fixed `py-pip` → `py3-pip` and removed duplicate `tzdata` in `Dockerfile`
 - **Important:** Pinned `github-backup` to version `0.65.1` in `Dockerfile`
 - **Minor:** Removed deprecated `version: "2"` key from `docker-compose.yml`

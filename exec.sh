@@ -13,6 +13,13 @@ echo "backup options=${BACKUP_OPTIONS}"
 MAX_BACKUPS=${MAX_BACKUPS:=10}
 echo "max backups=${MAX_BACKUPS}"
 
+COMPRESSION=${COMPRESSION:-}
+if [ -n "${COMPRESSION}" ]; then
+    echo "compression=enabled"
+else
+    echo "compression=disabled"
+fi
+
 NOTIFY_WEBHOOK_URL=${NOTIFY_WEBHOOK_URL:-}
 if [ -n "${NOTIFY_WEBHOOK_URL}" ]; then
     echo "notifications=enabled"
@@ -144,6 +151,7 @@ run_backup() {
     run_date=$4
     output_directory="${VAR_DIR}/${run_date}/${entity}"
     log_file="${LOG_DIR}/${run_date}_${entity_type}_${entity}.log"
+    archive="${VAR_DIR}/${run_date}/${run_date}_${entity}.tar.gz"
     rc_file=$(mktemp)
 
     mkdir -p "${LOG_DIR}"
@@ -160,6 +168,15 @@ run_backup() {
     elif has_soft_failures "${log_file}"; then
         echo "$(date) - WARNING: backup completed for ${entity_type} ${entity} with warnings" | tee -a "${log_file}"
         notify_teams "warning" "${entity_type}" "${entity}" "${run_date}" "${rc}" "${log_file}"
+    fi
+
+    if [ -n "${COMPRESSION}" ] && [ -d "${output_directory}" ]; then
+        echo "$(date) - compress ${output_directory} -> ${archive}" | tee -a "${log_file}"
+        if tar -C "${VAR_DIR}/${run_date}" -czf "${archive}" "${entity}" >>"${log_file}" 2>&1; then
+            rm -rf "${output_directory}"
+        else
+            echo "$(date) - ERROR: compression failed for ${entity_type} ${entity}, keeping ${output_directory}" | tee -a "${log_file}"
+        fi
     fi
 }
 

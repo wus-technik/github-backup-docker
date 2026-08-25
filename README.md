@@ -38,6 +38,12 @@ BACKUP_OPTIONS=--private --repositories
 
 `NOTIFY_WEBHOOK_URL` can also be set in the environment to send Teams/Power Automate cards for failed or warning runs.
 
+## Compression
+
+Set `COMPRESSION` to any non-empty value to pack each finished snapshot into
+`/srv/var/<TIMESTAMP>/<TIMESTAMP>_<user_or_org>.tar.gz` and remove the uncompressed directory.
+If the `tar` run fails, the directory is kept and the failure is logged.
+
 ## Prepared images
 
 - [github packages](https://github.com/orgs/wus-technik/packages/container/package/github-backup-docker)

@@ -25,7 +25,7 @@ docker build .
 
 The project consists of three files:
 
-- **`Dockerfile`** — Alpine (`alpine:3.19`) image that installs `github-backup==0.65.1` via pip3 and sets `exec.sh` as the entrypoint. Update the pinned version here when upgrading.
+- **`Dockerfile`** — Alpine (`alpine:3.23`) image that installs `github-backup==0.65.1` into a virtualenv at `/opt/venv` (Alpine's Python is externally managed) and sets `exec.sh` as the entrypoint. Update the pinned version here when upgrading.
 - **`exec.sh`** — The entire application logic: sets timezone, writes the token to a temp file (to avoid process-list exposure), loops forever (sleeping 1 day between runs), calls `github-backup` for each user/org with per-run logs and exit-code checking, optionally sends Teams/Power Automate notifications, then prunes old timestamped backups and logs.
 - **`docker-compose.yml`** — Reference configuration showing all supported environment variables
 
@@ -40,9 +40,13 @@ The project consists of three files:
 | `TIME_ZONE` | `UTC` | Timezone string (e.g. `America/Chicago`) |
 | `BACKUP_OPTIONS` | `--all --private --gists` | Flags passed directly to `github-backup` |
 | `NOTIFY_WEBHOOK_URL` | — | Optional Teams/Power Automate webhook for failure and warning cards |
+| `COMPRESSION` | — | Set to any non-empty value to tar/gzip each snapshot after the backup |
 
-Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container. Per-run logs are stored at `/srv/var/logs/`. Mount a volume at `/srv/var` to persist them.
+Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container (or as `/srv/var/<TIMESTAMP>/<TIMESTAMP>_<user_or_org>.tar.gz` when `COMPRESSION` is set). Per-run logs are stored at `/srv/var/logs/`. Mount a volume at `/srv/var` to persist them.
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`) builds the Docker image on every push/PR. On pushes to `master` or tags, it pushes multi-arch images (`linux/amd64`, `linux/arm/v7`, `linux/arm64`) to `ghcr.io/wus-technik/github-backup-docker`.
+Two workflows:
+
+- **`.github/workflows/ci.yml`** — on every push/PR: shellcheck + `sh -n` on `exec.sh`, compose validation, and a Docker image build.
+- **`.github/workflows/build.yml`** — on semver tags (`X.Y.Z`) and manual dispatch: pushes multi-arch images (`linux/amd64`, `linux/arm/v7`, `linux/arm64`) to `ghcr.io/wus-technik/github-backup-docker`. The highest semver tag also gets `:latest`; manual runs are tagged with the commit SHA.
