@@ -56,6 +56,7 @@ Two workflows:
 | push to `master` | `:latest`, `:master-<short sha>` |
 | push of a semver tag `X.Y.Z` | `:X.Y.Z`, plus `:stable` if it is the highest semver tag |
 | push of a non-semver tag | nothing (build skipped) |
-| manual dispatch | `:<full commit sha>` |
+| manual dispatch on a tag | same as pushing that tag (lets `:stable` be re-minted without re-tagging) |
+| manual dispatch on a branch | `:<full commit sha>` |
 
 `:latest` tracks `master` and is therefore a staging tag. Production deployments should pin `:stable` (as `docker-compose.yml` does) or an explicit version.

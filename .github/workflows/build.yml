@@ -47,15 +47,15 @@ jobs:
             echo "resolved tags: $*"
           }
 
-          # Manual runs: tag with the commit SHA only
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            emit_tags "${IMAGE}:${GITHUB_SHA}"
+          # Staging: every push to master moves :latest
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            emit_tags "${IMAGE}:latest" "${IMAGE}:master-${SHORT_SHA}"
             exit 0
           fi
 
-          # Staging: every push to master moves :latest
-          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
-            emit_tags "${IMAGE}:latest" "${IMAGE}:master-${SHORT_SHA}"
+          # Anything that is not a tag (e.g. manual run on a branch): SHA only
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            emit_tags "${IMAGE}:${GITHUB_SHA}"
             exit 0
           fi
 
