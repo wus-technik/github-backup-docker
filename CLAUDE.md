@@ -55,7 +55,7 @@ Two workflows:
 | Trigger | Image tags |
 |---|---|
 | push to `master` | `:latest`, `:master-<short sha>` |
-| push of a semver tag `X.Y.Z` | `:X.Y.Z`, plus `:stable` if it is the highest semver tag |
+| push of a semver tag `X.Y.Z` | `:X.Y.Z`, plus `:stable` if it is the newest plain release (prereleases like `X.Y.Z-rc1` get their own tag but never `:stable`) |
 | push of a non-semver tag | nothing (build skipped) |
 | manual dispatch on a tag | same as pushing that tag (lets `:stable` be re-minted without re-tagging) |
 | manual dispatch on a branch | `:<full commit sha>` |

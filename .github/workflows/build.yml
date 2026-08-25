@@ -68,14 +68,22 @@ jobs:
 
           git fetch --tags --force
 
+          # Prerelease tags (e.g. 1.3.0-rc1) never carry :stable, even when they
+          # sort above the newest release; they get their own image tag only.
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            emit_tags "${IMAGE}:${TAG}"
+            exit 0
+          fi
+
+          # :stable tracks the newest plain release (sort -V is unambiguous
+          # for X.Y.Z without prerelease suffixes)
           LATEST_TAG="$(git tag -l \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
             | sort -V \
             | tail -n 1)"
 
           echo "LATEST_TAG=${LATEST_TAG}"
 
-          # Only the highest semver tag carries :stable
           if [[ "$TAG" == "$LATEST_TAG" ]]; then
             emit_tags "${IMAGE}:${TAG}" "${IMAGE}:stable"
           else
