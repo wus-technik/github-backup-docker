@@ -65,7 +65,7 @@ problem is caught the same day, not after the loss.
 | `MAX_BACKUPS` | `10` | Number of backup snapshots to retain |
 | `TIME_ZONE` | `UTC` | Timezone string, e.g. `America/Chicago` |
 | `BACKUP_OPTIONS` | `--all --private --gists` | Flags passed straight through to `github-backup` |
-| `NOTIFY_WEBHOOK_URL` | — | Teams/Power Automate webhook for failure and warning cards |
+| `NOTIFY_WEBHOOK_URL` | — | Teams/Power Automate webhook for configuration, failure and warning cards |
 | `COMPRESSION` | — | Packs each finished snapshot into a `.tar.gz`; `no`, `false`, `off`, `0` and an empty value turn it off |
 
 ## Monitoring and notifications
@@ -74,10 +74,25 @@ Each backup run writes an entity-specific log file under `/srv/var/logs/`.
 
 Set `NOTIFY_WEBHOOK_URL` to a Teams/Power Automate webhook URL to get a card when:
 
+- the configuration is unusable and the container refuses to start (missing `TOKEN`, invalid `MAX_BACKUPS`, unknown `TIME_ZONE`)
 - `github-backup` exits with a non-zero code
 - the run exits successfully but its log shows soft-failure markers such as unavailable repositories, inaccessible repositories, git return code `128`, or disabled pull requests
 
 Clean runs stay silent.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | still running — the scheduler does not exit on its own |
+| `78` | unusable configuration (`EX_CONFIG`); a card is sent before exiting |
+| `143` | `SIGTERM` received, shut down cleanly |
+
+`78` is deliberately distinct from a failed backup run so that monitoring can tell
+"misconfigured" from "crashed" without parsing logs. With a `restart` policy in place
+a misconfigured container loops — `docker ps` shows `Restarting`, and
+`docker logs --tail 5` shows the reason as the last line. The webhook attempt is
+bounded, so an unreachable endpoint delays the exit by seconds, not indefinitely.
 
 > [!WARNING]
 > Do not commit webhook URLs or GitHub tokens; provide them through the live stack environment.

@@ -33,60 +33,10 @@ else
     echo "notifications=disabled"
 fi
 
-# Fail fast on invalid configuration instead of burning a run cycle on it
-if [ -z "${TOKEN:-}" ]; then
-    echo "ERROR: TOKEN is not set" >&2
-    exit 1
-fi
-
-# Reject non-numeric values first, then anything that is numerically zero.
-# 0, 00, 000 ... all reach "head -n -N" in cleanup_old_backups as 0, which makes
-# head emit every snapshot and rm -rf delete the lot.
-case "${MAX_BACKUPS}" in
-    "" | *[!0-9]*)
-        echo "ERROR: MAX_BACKUPS must be a positive integer (got '${MAX_BACKUPS}')" >&2
-        exit 1
-        ;;
-esac
-
-if [ "${MAX_BACKUPS}" -lt 1 ]; then
-    echo "ERROR: MAX_BACKUPS must be a positive integer (got '${MAX_BACKUPS}')" >&2
-    exit 1
-fi
-
-if [ ! -f "/usr/share/zoneinfo/${TIME_ZONE}" ]; then
-    echo "ERROR: unknown TIME_ZONE '${TIME_ZONE}'" >&2
-    exit 1
-fi
-
 # Substrings marking a soft failure: successful exit, but some repositories
 # were skipped. Shared by has_soft_failures (warning detection) and the
 # notification card (matched lines).
 SOFT_FAILURE_MARKERS='is unavailable|repository not accessible|returned 128|Pull requests are disabled'
-
-cp /usr/share/zoneinfo/"${TIME_ZONE}" /etc/localtime
-echo "${TIME_ZONE}" >/etc/timezone
-
-# Write token to a temp file to avoid exposing it in the process list.
-# github-backup reads the first line when the value is a file:// URI.
-TOKEN_FILE=$(mktemp)
-echo "${TOKEN}" > "${TOKEN_FILE}"
-chmod 600 "${TOKEN_FILE}"
-
-# Fine-grained tokens must go through --token-fine; anything else is a classic
-# PAT/OAuth token and belongs on --token.
-case "${TOKEN}" in
-    github_pat_*) TOKEN_FLAG="--token-fine" ;;
-    *)            TOKEN_FLAG="--token" ;;
-esac
-echo "token flag=${TOKEN_FLAG}"
-
-cleanup_token() {
-    rm -f "${TOKEN_FILE}"
-}
-
-trap cleanup_token EXIT
-trap 'cleanup_token; exit 143' INT TERM
 
 notify_teams() {
     level=$1
@@ -95,6 +45,8 @@ notify_teams() {
     run_date=$4
     exit_code=$5
     log_file=$6
+    # Only the "config" level carries a message; the run levels read the log.
+    message=${7:-}
 
     if [ -z "${NOTIFY_WEBHOOK_URL}" ]; then
         return 0
@@ -108,8 +60,22 @@ notify_teams() {
     export NOTIFY_EXIT_CODE="${exit_code}"
     export NOTIFY_LOG_FILE="${log_file}"
     export NOTIFY_SOFT_FAILURE_MARKERS="${SOFT_FAILURE_MARKERS}"
+    export NOTIFY_MESSAGE="${message}"
 
-    python3 <<'PY'
+    # Hard bound on the whole attempt: a dead webhook must not keep the
+    # container alive. Configuration errors get the tighter one because the
+    # container is about to exit anyway.
+    if [ "${level}" = "config" ]; then
+        notify_timeout=10
+    else
+        notify_timeout=60
+    fi
+
+    # Backgrounded and waited on for the same reason as the daily sleep: in
+    # POSIX sh a trap only runs once the foreground command returns, so a
+    # SIGTERM arriving mid-notification would otherwise sit out the stop grace
+    # and end in SIGKILL. "wait" is interruptible, so the trap fires at once.
+    timeout "${notify_timeout}" python3 <<'PY' &
 import json
 import os
 import sys
@@ -123,6 +89,10 @@ run_date = os.environ["NOTIFY_RUN_DATE"]
 exit_code = os.environ["NOTIFY_EXIT_CODE"]
 log_file = os.environ["NOTIFY_LOG_FILE"]
 webhook_url = os.environ["NOTIFY_WEBHOOK_URL"]
+message = os.environ.get("NOTIFY_MESSAGE", "")
+# Blank line between entries; built from chr() to keep this heredoc
+# free of backslash escapes.
+SEP = chr(10) + chr(10)
 # Same markers the shell uses to detect soft failures, plus "ERROR" and
 # "Traceback", which are always worth showing in the card.
 markers = os.environ["NOTIFY_SOFT_FAILURE_MARKERS"].split("|") + ["ERROR", "Traceback"]
@@ -145,19 +115,31 @@ def read_tail(path):
     except OSError as exc:
         return [f"could not read log: {exc}"]
 
-matches = read_matching_lines(log_file)
-tail = read_tail(log_file)
-theme = "D13438" if level == "failure" else "F2C744"
-title = f"GitHub backup {level}: {entity_type} {entity}"
-summary = f"{entity_type} {entity}, run {run_date}, exit code {exit_code}"
-
-payload = {
-    "@type": "MessageCard",
-    "@context": "https://schema.org/extensions",
-    "themeColor": theme,
-    "summary": title,
-    "title": title,
-    "sections": [
+if level == "config":
+    # No run happened, so there is no log to quote -- the message is the whole
+    # story, and the container is about to exit and be restarted by Docker.
+    theme = "D13438"
+    title = "GitHub backup configuration error"
+    sections = [
+        {
+            "facts": [
+                {"name": "Problem", "value": message},
+                {"name": "Detected", "value": run_date},
+                {"name": "Exit code", "value": exit_code},
+            ],
+            "text": (
+                "The container stopped before any backup ran. Fix the environment "
+                "and recreate it; with a restart policy in place it is looping."
+            ),
+        },
+    ]
+else:
+    matches = read_matching_lines(log_file)
+    tail = read_tail(log_file)
+    theme = "D13438" if level == "failure" else "F2C744"
+    title = f"GitHub backup {level}: {entity_type} {entity}"
+    summary = f"{entity_type} {entity}, run {run_date}, exit code {exit_code}"
+    sections = [
         {
             "facts": [
                 {"name": "Entity", "value": f"{entity_type} {entity}"},
@@ -167,9 +149,17 @@ payload = {
             ],
             "text": summary,
         },
-        {"activityTitle": "Matched lines", "text": "\n\n".join(matches) if matches else "No matching error or warning lines found."},
-        {"activityTitle": "Log tail", "text": "\n\n".join(tail)},
-    ],
+        {"activityTitle": "Matched lines", "text": SEP.join(matches) if matches else "No matching error or warning lines found."},
+        {"activityTitle": "Log tail", "text": SEP.join(tail)},
+    ]
+
+payload = {
+    "@type": "MessageCard",
+    "@context": "https://schema.org/extensions",
+    "themeColor": theme,
+    "summary": title,
+    "title": title,
+    "sections": sections,
 }
 
 request = urllib.request.Request(
@@ -186,7 +176,75 @@ try:
 except (urllib.error.URLError, TimeoutError) as exc:
     print(f"notification failed: {exc}", file=sys.stderr)
 PY
+    wait $!
 }
+
+# Until TOKEN_FILE exists there is nothing to clean up, but PID 1 ignores a
+# SIGTERM that has no handler -- without this, a stop during the configuration
+# notification would sit out the grace period and end in SIGKILL.
+trap 'exit 143' INT TERM
+
+# Exit code for an unusable configuration, distinct from a failed backup run so
+# that "misconfigured" can be told from "crashed" without parsing logs.
+EXIT_CONFIG=78
+
+fail_config() {
+    message=$1
+    echo "ERROR: ${message}" >&2
+    notify_teams "config" "-" "-" "$(date +%Y%m%d-%H%M%S)" "${EXIT_CONFIG}" "" "${message}"
+    exit "${EXIT_CONFIG}"
+}
+
+# The timezone is validated and applied first so that every later notification
+# carries local time. A card about an unusable TIME_ZONE necessarily reports
+# UTC -- there is no valid zone to apply at that point.
+if [ ! -f "/usr/share/zoneinfo/${TIME_ZONE}" ]; then
+    fail_config "unknown TIME_ZONE '${TIME_ZONE}'"
+fi
+
+cp /usr/share/zoneinfo/"${TIME_ZONE}" /etc/localtime
+echo "${TIME_ZONE}" >/etc/timezone
+
+# Fail fast on invalid configuration instead of burning a run cycle on it
+if [ -z "${TOKEN:-}" ]; then
+    fail_config "TOKEN is not set"
+fi
+
+# Reject non-numeric values first, then anything that is numerically zero.
+# 0, 00, 000 ... all reach "head -n -N" in cleanup_old_backups as 0, which makes
+# head emit every snapshot and rm -rf delete the lot.
+case "${MAX_BACKUPS}" in
+    "" | *[!0-9]*)
+        fail_config "MAX_BACKUPS must be a positive integer (got '${MAX_BACKUPS}')"
+        ;;
+esac
+
+if [ "${MAX_BACKUPS}" -lt 1 ]; then
+    fail_config "MAX_BACKUPS must be a positive integer (got '${MAX_BACKUPS}')"
+fi
+
+
+# Write token to a temp file to avoid exposing it in the process list.
+# github-backup reads the first line when the value is a file:// URI.
+TOKEN_FILE=$(mktemp)
+printf '%s
+' "${TOKEN}" > "${TOKEN_FILE}"
+chmod 600 "${TOKEN_FILE}"
+
+# Fine-grained tokens must go through --token-fine; anything else is a classic
+# PAT/OAuth token and belongs on --token.
+case "${TOKEN}" in
+    github_pat_*) TOKEN_FLAG="--token-fine" ;;
+    *)            TOKEN_FLAG="--token" ;;
+esac
+echo "token flag=${TOKEN_FLAG}"
+
+cleanup_token() {
+    rm -f "${TOKEN_FILE}"
+}
+
+trap cleanup_token EXIT
+trap 'cleanup_token; exit 143' INT TERM
 
 has_soft_failures() {
     log_file=$1
