@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.3] - 2026-08-26
+
+### Fixed
+- **Important:** `exec.sh` now fails fast on a missing `TOKEN`, an invalid `MAX_BACKUPS` or an unknown `TIME_ZONE` instead of starting a run cycle that cannot work. Note that with a `restart` policy in place an invalid value now produces a restart loop rather than an idle container.
+- **Important:** The daily sleep runs in the background and is waited on, so the `INT`/`TERM` traps fire immediately instead of after the sleep finishes. A container stop used to hit the grace period and exit 137; it now exits 143 within a second.
+- Log retention is grouped by run date, so keeping `MAX_BACKUPS` runs of logs matches `MAX_BACKUPS` snapshots even when several users or organizations each write a log per run.
+- **Critical:** `MAX_BACKUPS` was only rejected when it was the literal `0`, so `00` and `000` passed validation. Both reach `head -n -N` in the pruning step as `0`, and `head -n -0` emits every line rather than none — the complete list of snapshots was handed to `rm -rf` after every run. The value is now checked for digits and then numerically for `< 1`.
+
+### Changed
+- The soft-failure markers are defined once and shared by the warning detection and the notification card, which previously kept two drifting copies. The shared set matches `repository not accessible` without the former `Skipping ` prefix, so it is slightly broader than before.
+- README: the upstream section now states that `umputun/github-backup-docker` is no longer actively tracked, while provenance and attribution are kept.
+- `COMPRESSION` is now off for an empty value and for `no`, `false`, `off` and `0` (case-insensitive), and on for anything else. Previously any non-empty value enabled compression, so `COMPRESSION=no` compressed. Existing settings such as `COMPRESSION=GZIP` are unaffected; `docker-compose.yml` now shows `COMPRESSION=no`.
+
+### Added
+- The smoke test grew from 3 to 13 checks and now covers configuration validation (missing `TOKEN`, `MAX_BACKUPS` `0`/`00`/`abc`, unknown `TIME_ZONE`), retention (`MAX_BACKUPS=2` keeps exactly the two newest snapshots), `COMPRESSION` handling, and SIGTERM during the daily sleep (exit 143 within ten seconds). Each check was confirmed to fail against a deliberately broken image. Both workflow steps carry `timeout-minutes` as a backstop.
+
 ## [1.2.2] - 2026-08-26
 
 ### Fixed
