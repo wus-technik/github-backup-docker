@@ -119,6 +119,7 @@ jobs:
 
       - name: Smoke test image
         if: steps.meta.outputs.skip != 'true'
+        timeout-minutes: 15
         run: ./ci/smoke-test.sh github-backup-docker:smoke
 
       - name: Build and push image

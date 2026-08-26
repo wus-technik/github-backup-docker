@@ -37,4 +37,5 @@ jobs:
       run: docker build --pull --tag github-backup-docker:test .
 
     - name: smoke test built image
+      timeout-minutes: 15
       run: ./ci/smoke-test.sh github-backup-docker:test
