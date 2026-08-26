@@ -2,8 +2,8 @@
 # Smoke test against the real github-backup binary and the real exec.sh in the
 # built image.
 #
-# A stubbed binary cannot tell a wrong flag from a wrong credential, and
-# shellcheck cannot tell a wrong flag at all -- that is how 1.2.1 shipped with
+# A stubbed binary cannot tell a wrong flag from a wrong credential, and static
+# linting cannot tell a wrong flag at all -- that is how 1.2.1 shipped with
 # --token-file, a flag python-github-backup never had. Everything here runs the
 # actual image and asserts on observable behaviour.
 set -eu
