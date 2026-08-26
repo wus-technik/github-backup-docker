@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.4] - 2026-08-26
+
+### Added
+- Configuration errors now send a notification card through `NOTIFY_WEBHOOK_URL` before the container exits. The fail-fast checks added in 1.2.3 were diagnosable but silent — `notify_teams` was only reachable from a backup run, so a mistyped `TOKEN` was only found by someone looking at the container.
+- The smoke test runs a real HTTP receiver and asserts that both a configuration error and a failed run post a card; both count cards before and after so one check cannot pass on another's card. Now 15 checks.
+
+### Changed
+- **Behaviour change:** an unusable configuration exits `78` (`EX_CONFIG`) instead of `1`, so monitoring can tell "misconfigured" from "crashed" without parsing logs. The exit codes are documented in the README.
+- `TIME_ZONE` is validated and applied before the other checks, so every notification carries local time. A card about an invalid `TIME_ZONE` necessarily reports UTC.
+
+### Fixed
+- **Important:** The webhook call is backgrounded and waited on, like the daily sleep. A POSIX trap only runs once the foreground command returns, so a `SIGTERM` arriving mid-notification used to sit out the stop grace and end in `SIGKILL`. Measured against an unreachable webhook under the default 10s grace: exit `137` before, exit `143` within a second after.
+- An `INT`/`TERM` trap is installed before anything can block. PID 1 ignores a `SIGTERM` that has no handler, so the window before the token file exists was unprotected.
+- The notification attempt is bounded — 10s for configuration errors, 60s for run notifications, where a slow endpoint should not cost a failure card.
+- The token file is written with `printf` rather than `echo`.
+- `ci/smoke-test.sh` no longer reports success when a container fails to complete a cycle within the timeout, which could let a check assert against a half-finished container and pass.
+
 ## [1.2.3] - 2026-08-26
 
 ### Fixed
