@@ -13,12 +13,18 @@ echo "backup options=${BACKUP_OPTIONS}"
 MAX_BACKUPS=${MAX_BACKUPS:=10}
 echo "max backups=${MAX_BACKUPS}"
 
+# Off for the usual negative spellings (and for an unset or empty value); any
+# other value enables compression, so existing settings like GZIP keep working.
 COMPRESSION=${COMPRESSION:-}
-if [ -n "${COMPRESSION}" ]; then
-    echo "compression=enabled"
-else
-    echo "compression=disabled"
-fi
+case "$(printf '%s' "${COMPRESSION}" | tr '[:upper:]' '[:lower:]')" in
+    "" | no | false | off | 0)
+        COMPRESSION=""
+        echo "compression=disabled"
+        ;;
+    *)
+        echo "compression=enabled"
+        ;;
+esac
 
 NOTIFY_WEBHOOK_URL=${NOTIFY_WEBHOOK_URL:-}
 if [ -n "${NOTIFY_WEBHOOK_URL}" ]; then

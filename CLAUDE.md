@@ -41,9 +41,9 @@ The project consists of four files:
 | `TIME_ZONE` | `UTC` | Timezone string (e.g. `America/Chicago`) |
 | `BACKUP_OPTIONS` | `--all --private --gists` | Flags passed directly to `github-backup` |
 | `NOTIFY_WEBHOOK_URL` | — | Optional Teams/Power Automate webhook for failure and warning cards |
-| `COMPRESSION` | — | Set to any non-empty value to tar/gzip each snapshot after the backup |
+| `COMPRESSION` | — | Tar/gzip each snapshot after the backup; off for an empty value or `no`/`false`/`off`/`0` (case-insensitive), on for anything else |
 
-Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container (or as `/srv/var/<TIMESTAMP>/<TIMESTAMP>_<user_or_org>.tar.gz` when `COMPRESSION` is set). Per-run logs are stored at `/srv/var/logs/`. Mount a volume at `/srv/var` to persist them.
+Backups are stored at `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container (or as `/srv/var/<TIMESTAMP>/<TIMESTAMP>_<user_or_org>.tar.gz` when `COMPRESSION` is on). Per-run logs are stored at `/srv/var/logs/`. Mount a volume at `/srv/var` to persist them.
 
 ## CI/CD
 

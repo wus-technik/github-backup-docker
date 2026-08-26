@@ -66,7 +66,7 @@ problem is caught the same day, not after the loss.
 | `TIME_ZONE` | `UTC` | Timezone string, e.g. `America/Chicago` |
 | `BACKUP_OPTIONS` | `--all --private --gists` | Flags passed straight through to `github-backup` |
 | `NOTIFY_WEBHOOK_URL` | — | Teams/Power Automate webhook for failure and warning cards |
-| `COMPRESSION` | — | Any non-empty value packs each finished snapshot into a `.tar.gz` |
+| `COMPRESSION` | — | Packs each finished snapshot into a `.tar.gz`; `no`, `false`, `off`, `0` and an empty value turn it off |
 
 ## Monitoring and notifications
 
@@ -100,9 +100,13 @@ environment:
 
 ## Compression
 
-Set `COMPRESSION` to any non-empty value to pack each finished snapshot into
+Set `COMPRESSION` to pack each finished snapshot into
 `/srv/var/<TIMESTAMP>/<TIMESTAMP>_<user_or_org>.tar.gz` and remove the uncompressed
 directory. If the `tar` run fails, the directory is kept and the failure is logged.
+
+Compression is **off** when the value is empty or one of `no`, `false`, `off`, `0`
+(case-insensitive). Every other value turns it **on**, so a descriptive setting such
+as `COMPRESSION=GZIP` works as expected.
 
 ## Prepared images
 
