@@ -33,12 +33,20 @@ if [ -z "${TOKEN:-}" ]; then
     exit 1
 fi
 
+# Reject non-numeric values first, then anything that is numerically zero.
+# 0, 00, 000 ... all reach "head -n -N" in cleanup_old_backups as 0, which makes
+# head emit every snapshot and rm -rf delete the lot.
 case "${MAX_BACKUPS}" in
-    0 | *[!0-9]*)
+    "" | *[!0-9]*)
         echo "ERROR: MAX_BACKUPS must be a positive integer (got '${MAX_BACKUPS}')" >&2
         exit 1
         ;;
 esac
+
+if [ "${MAX_BACKUPS}" -lt 1 ]; then
+    echo "ERROR: MAX_BACKUPS must be a positive integer (got '${MAX_BACKUPS}')" >&2
+    exit 1
+fi
 
 if [ ! -f "/usr/share/zoneinfo/${TIME_ZONE}" ]; then
     echo "ERROR: unknown TIME_ZONE '${TIME_ZONE}'" >&2
