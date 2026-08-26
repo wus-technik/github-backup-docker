@@ -194,7 +194,44 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. SIGTERM during the daily sleep terminates promptly
+# 5. COMPRESSION decides whether a snapshot is packed
+#
+#    Any value that is not a negative spelling enables compression, so a
+#    descriptive setting like GZIP keeps working while "no" turns it off.
+#    The archive is written even when the backup itself failed, as long as
+#    github-backup created the output directory -- which is what makes this
+#    checkable with a dummy token.
+# ---------------------------------------------------------------------------
+
+check_compression() {
+    label=$1
+    value=$2
+    expected=$3
+
+    echo "== compression: ${label} =="
+    start_and_wait_for_cycle "-e TOKEN=ghp_x -e COMPRESSION=${value}         -e GITHUB_USER=wus-technik-smoke-test-does-not-exist         -e BACKUP_OPTIONS=--repositories"
+    mode=$(docker logs "${CONTAINER}" 2>&1 | grep -m1 '^compression=' || true)
+    archives=$(docker exec "${CONTAINER}" sh -c 'ls -1 /srv/var/*/*.tar.gz 2>/dev/null | wc -l')
+    docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
+    CONTAINER=""
+
+    if [ "${mode}" != "compression=${expected}" ]; then
+        fail "${label}: reported '${mode}', expected 'compression=${expected}'"
+    elif [ "${expected}" = "enabled" ] && [ "${archives}" -eq 0 ]; then
+        fail "${label}: reported enabled but wrote no archive"
+    elif [ "${expected}" = "disabled" ] && [ "${archives}" -ne 0 ]; then
+        fail "${label}: reported disabled but wrote ${archives} archive(s)"
+    else
+        pass "${label} (${mode}, ${archives} archive(s))"
+    fi
+}
+
+check_compression "COMPRESSION=GZIP packs" GZIP enabled
+check_compression "COMPRESSION=no does not pack" no disabled
+check_compression "COMPRESSION=OFF does not pack" OFF disabled
+
+# ---------------------------------------------------------------------------
+# 6. SIGTERM during the daily sleep terminates promptly
 # ---------------------------------------------------------------------------
 
 echo "== signals: SIGTERM during sleep =="
