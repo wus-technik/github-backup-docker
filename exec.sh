@@ -36,7 +36,14 @@ fi
 # Substrings marking a soft failure: successful exit, but some repositories
 # were skipped. Shared by has_soft_failures (warning detection) and the
 # notification card (matched lines).
-SOFT_FAILURE_MARKERS='is unavailable|repository not accessible|returned 128|Pull requests are disabled'
+#
+# "Pull requests are disabled" is deliberately not in this set. GitHub answers
+# /repos/<repo>/pulls with 404 whenever a repository has its Issues feature
+# turned off, so every run over an organization that owns such a repository
+# warned about a permanent, harmless property -- a nightly card that never
+# meant anything. The markers kept here all describe data that should have
+# been backed up and was not.
+SOFT_FAILURE_MARKERS='is unavailable|repository not accessible|returned 128'
 
 notify_teams() {
     level=$1

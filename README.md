@@ -38,7 +38,7 @@ problem is caught the same day, not after the loss.
 | 🏷 **Many targets, one container** | Back up several users and/or organizations, comma-separated in `GITHUB_USER` / `GITHUB_ORG` |
 | ⏳ **Snapshot retention** | Keeps the newest `MAX_BACKUPS` (default `10`) timestamped backups and prunes the rest, logs included |
 | 🗜 **Optional compression** | Each finished snapshot can be packed into a single `.tar.gz` |
-| 🔔 **Smart notifications** | Teams/Power Automate cards on non-zero exits and soft-failure markers (unavailable repos, git rc `128`, disabled PRs) — clean runs stay silent |
+| 🔔 **Smart notifications** | Teams/Power Automate cards on non-zero exits and soft-failure markers (unavailable repos, inaccessible repos, git rc `128`) — clean runs stay silent |
 | 📄 **Per-run logs** | One log file per target under `/srv/var/logs/` |
 | 🧱 **Multi-arch image** | Published for `linux/amd64`, `linux/arm/v7`, and `linux/arm64` |
 
@@ -76,7 +76,7 @@ Set `NOTIFY_WEBHOOK_URL` to a Teams/Power Automate webhook URL to get a card whe
 
 - the configuration is unusable and the container refuses to start (missing `TOKEN`, invalid `MAX_BACKUPS`, unknown `TIME_ZONE`)
 - `github-backup` exits with a non-zero code
-- the run exits successfully but its log shows soft-failure markers such as unavailable repositories, inaccessible repositories, git return code `128`, or disabled pull requests
+- the run exits successfully but its log shows soft-failure markers such as unavailable repositories, inaccessible repositories, or git return code `128`
 
 Clean runs stay silent.
 
