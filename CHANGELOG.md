@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Important:** A repository with its Issues feature turned off no longer turns a clean run into a warning. GitHub answers `/repos/<repo>/pulls` with `404` for those repositories, which `github-backup` logs as `Pull requests are disabled for this repository, skipping` — a permanent property of the repository, not a backup gap. The string was a soft-failure marker, so an organization owning two such repositories sent a warning card every night for weeks while every backup was in fact complete. `Pull requests are disabled` is dropped from `SOFT_FAILURE_MARKERS`; `is unavailable`, `repository not accessible` and `returned 128` stay, since those do mark data that was not backed up.
+
 ## [1.2.4] - 2026-08-26
 
 ### Added
