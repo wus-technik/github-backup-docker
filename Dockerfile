@@ -1,4 +1,4 @@
-FROM alpine:3.23
+FROM alpine:3.24
 
 LABEL org.opencontainers.image.title="github-backup-docker" \
       org.opencontainers.image.description="wus-technik maintained Docker wrapper for python-github-backup, based on upstream umputun/github-backup-docker" \
