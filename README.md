@@ -2,177 +2,189 @@
 
 # github-backup-docker
 
-**Your GitHub, backed up daily — with retention that takes care of itself.**
+**Your GitHub, backed up daily — with successful snapshots kept safe.**
 
-A Dockerized wrapper around [python-github-backup](https://github.com/josegonzalez/python-github-backup)
-that backs up GitHub users and/or organizations every day and keeps a configurable
-number of backup snapshots. This fork is maintained by [wus-technik](https://github.com/wus-technik)
-and keeps upstream provenance with [umputun/github-backup-docker](https://github.com/umputun/github-backup-docker).
+A Docker wrapper around [python-github-backup](https://github.com/josegonzalez/python-github-backup),
+maintained by [wus-technik](https://github.com/wus-technik), based on
+[umputun/github-backup-docker](https://github.com/umputun/github-backup-docker).
 
-[![Latest release](https://img.shields.io/github/v/release/wus-technik/github-backup-docker?style=for-the-badge&logo=github&color=6C4BF6)](https://github.com/wus-technik/github-backup-docker/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/wus-technik/github-backup-docker/ci.yml?branch=master&style=for-the-badge&label=CI)](https://github.com/wus-technik/github-backup-docker/actions/workflows/ci.yml)
-[![Docker image](https://img.shields.io/badge/Docker-ghcr.io%2Fwus--technik%2Fgithub--backup--docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/orgs/wus-technik/packages/container/package/github-backup-docker)
-
-[![License: MIT](https://img.shields.io/github/license/wus-technik/github-backup-docker?style=flat-square&color=blue)](LICENSE)
-![Alpine](https://img.shields.io/badge/base-alpine%3A3.23-0D94FB?style=flat-square&logo=alpinelinux&logoColor=white)
-![Multi-arch](https://img.shields.io/badge/multi--arch-amd64%2C_armv7%2C_arm64-0078D6?style=flat-square)
-![Runs](https://img.shields.io/badge/runs-daily%2C_retention--managed-lightgrey?style=flat-square)
+[![CI](https://img.shields.io/github/actions/workflow/status/wus-technik/github-backup-docker/ci.yml?branch=master)](https://github.com/wus-technik/github-backup-docker/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
 
----
+Daily backups of multiple GitHub users/organizations, per-account retention,
+optional compression, and optional Teams/Power Automate failure notifications.
+Images support `linux/amd64`, `linux/arm64`, and `linux/arm/v7`.
 
-## Why
+## Install
 
-GitHub has no undo: a deleted repo, a vanished gist, or an org you lose access to
-is gone. This container runs [python-github-backup](https://github.com/josegonzalez/python-github-backup)
-on a daily schedule, retains `MAX_BACKUPS` timestamped snapshots, and sends a
-Teams/Power Automate card when a run fails or shows soft failures — so a backup
-problem is caught the same day, not after the loss.
+1. Create a GitHub token covering the accounts and data to back up. Prefer a
+   fine-grained token with the read permissions required by your selected options;
+   test the resulting backup coverage. Classic PATs with `repo` scope also work,
+   but have broader permissions. Gists may require a separate classic-token setup.
+2. Copy `docker-compose.yml`. Configure `GITHUB_USER` and/or `GITHUB_ORG`.
+3. Prepare the data directory and secret **on the Linux Docker host**:
 
-## What you get
+   ```sh
+   sudo install -d -o 10001 -g 10001 -m 0700 var secrets
+   sudo install -o 10001 -g 10001 -m 0400 /secure/path/github-token secrets/github_token
+   ```
 
-| | |
-|---|---|
-| 📦 **Daily full backups** | Repos (public + private), issues, pull requests, labels, gists and more — whatever `BACKUP_OPTIONS` selects |
-| 🏷 **Many targets, one container** | Back up several users and/or organizations, comma-separated in `GITHUB_USER` / `GITHUB_ORG` |
-| ⏳ **Snapshot retention** | Keeps the newest `MAX_BACKUPS` (default `10`) timestamped backups and prunes the rest, logs included |
-| 🗜 **Optional compression** | Each finished snapshot can be packed into a single `.tar.gz` |
-| 🔔 **Smart notifications** | Teams/Power Automate cards on non-zero exits and soft-failure markers (unavailable repos, inaccessible repos, git rc `128`) — clean runs stay silent |
-| 📄 **Per-run logs** | One log file per target under `/srv/var/logs/` |
-| 🧱 **Multi-arch image** | Published for `linux/amd64`, `linux/arm/v7`, and `linux/arm64` |
+4. Start with `docker compose up -d` and verify a successful first cycle and healthy
+   container. Secret files must be readable by UID 10001; Compose file secrets are
+   bind mounts, so set the host-file permissions explicitly.
 
-## Install and run
+The container runs as UID/GID `10001:10001`; the root filesystem is read-only, and
+only `/srv/var` and a bounded `/tmp` tmpfs are writable. It drops Linux capabilities
+and uses `no-new-privileges`. New files are private (`umask 077`). Timezone selection
+uses `TZ` and does not modify `/etc`.
 
-1. Generate a GitHub [access token](https://github.com/settings/tokens) with `repo` scope, covering every account and organization you want to back up.
-2. Grab the provided `docker-compose.yml`; adjust the `volumes` mapping and `MAX_BACKUPS` if needed.
-3. Set `TIME_ZONE` (see the [list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)).
-4. Set `TOKEN` (in the environment or directly in `docker-compose.yml`).
-5. Set `GITHUB_USER` (GitHub user accounts) and/or `GITHUB_ORG` (GitHub organizations — make sure the token has access to them). Multiple targets are comma-separated.
-6. Run `docker-compose up -d` to start the daily backup cycle.
+**Upgrading an existing deployment:** read [the migration instructions](docs/operations.md#migration)
+before recreating it. Existing data-directory ownership must be adjusted, and old
+backups may contain embedded access tokens.
 
-> [!NOTE]
-> Backups land in `/srv/var/<TIMESTAMP>/<user_or_org>/` inside the container —
-> mount a volume at `/srv/var` to persist them.
+## Configuration
 
-## Environment variables
-
-| Variable | Default | Description |
+| Variable | Default | Meaning |
 |---|---|---|
-| `TOKEN` | required | GitHub personal access token with `repo` scope |
-| `GITHUB_USER` | — | Comma-separated GitHub usernames to back up |
-| `GITHUB_ORG` | — | Comma-separated GitHub organizations (token must have org access) |
-| `MAX_BACKUPS` | `10` | Number of backup snapshots to retain |
-| `TIME_ZONE` | `UTC` | Timezone string, e.g. `America/Chicago` |
-| `BACKUP_OPTIONS` | `--all --private --gists` | Flags passed straight through to `github-backup` |
-| `NOTIFY_WEBHOOK_URL` | — | Teams/Power Automate webhook for configuration, failure and warning cards |
-| `COMPRESSION` | — | Packs each finished snapshot into a `.tar.gz`; `no`, `false`, `off`, `0` and an empty value turn it off |
+| `TOKEN_FILE` | — | Preferred: path to a token file, e.g. `/run/secrets/github_token` |
+| `TOKEN` | — | Compatibility alternative; never set together with `TOKEN_FILE` |
+| `GITHUB_USER` | — | Comma-separated GitHub usernames |
+| `GITHUB_ORG` | — | Comma-separated GitHub organizations |
+| `MAX_BACKUPS` | `10` | Successful snapshots retained **per account** |
+| `MAX_FAILED_BACKUPS` | `3` | Failed, incomplete or warning snapshots retained separately per account |
+| `TIME_ZONE` | `UTC` | IANA timezone, e.g. `Europe/Berlin` |
+| `BACKUP_OPTIONS` | `--all --private --gists` | Upstream backup options; shell-style quoting supported |
+| `NOTIFY_WEBHOOK_URL_FILE` | — | Preferred: path to a Teams/Power Automate webhook secret |
+| `NOTIFY_WEBHOOK_URL` | — | Compatibility alternative to the webhook file |
+| `COMPRESSION` | off | Empty, `no`, `false`, `off`, `0` disable compression, case-insensitively |
+| `VAR_DIR` | `/srv/var` | Data and status directory |
 
-## Monitoring and notifications
+At least one account is required. Duplicate or invalid account names are rejected.
+Authentication, account type and output-directory flags cannot be overridden using
+`BACKUP_OPTIONS`; these are managed by the supervisor. Other flags follow the
+[upstream CLI](https://github.com/josegonzalez/python-github-backup#usage).
+For example, `BACKUP_OPTIONS="--private --repositories"` selects repository code.
+`--all` means upstream's selection; it does not include every optional feature
+(for example LFS, forks or attachments). Verify the coverage you need.
 
-Each backup run writes an entity-specific log file under `/srv/var/logs/`.
+## Storage and retention
 
-Set `NOTIFY_WEBHOOK_URL` to a Teams/Power Automate webhook URL to get a card when:
+- Data: `/srv/var/<timestamp>/<account>/`.
+- Successful compressed data: `/srv/var/<timestamp>/<timestamp>_<account>.tar.gz`.
+- Sanitized logs: `/srv/var/logs/<timestamp>_<type>_<account>.log`.
+- Completion records: `<timestamp>/.status/<type>_<account>.json`.
+- Health/update coordination: `health.json`, `.cycle.lock`, `.update-request`.
 
-- the configuration is unusable and the container refuses to start (missing `TOKEN`, invalid `MAX_BACKUPS`, unknown `TIME_ZONE`)
-- `github-backup` exits with a non-zero code
-- the run exits successfully but its log shows soft-failure markers such as unavailable repositories, inaccessible repositories, or git return code `128`
+A run is marked incomplete before it starts. Only a zero exit without detected
+partial failures, and successful compression if requested, is marked successful.
+Warnings and failures cannot displace successful backups. Retention prunes each
+account's own data and logs, preserving other accounts sharing the timestamp.
+Failed snapshots have a separate limit, so outages do not grow them indefinitely.
 
-Clean runs stay silent.
+**Legacy directories without completion records are preserved**, because their
+success cannot be inferred from their names. Review and remove them manually after
+verifying a replacement backup. Never create successful completion records for
+unverified old data. Accounts removed from configuration are also preserved.
 
-### Exit codes
+Compression writes a temporary archive, renames it on success, and only then
+removes the original directory. Failed or interrupted compression preserves the
+uncompressed backup and is not considered a successful snapshot.
 
-| Code | Meaning |
+## Security and monitoring
+
+The API receives a token-file path. Git receives credential-free HTTPS URLs and
+uses a read-only helper restricted to the configured GitHub host. The helper's
+token is neither stored in remote configuration nor passed in process arguments.
+Token/webhook values and common credential representations are redacted before
+logs are persisted or sent. Avoid including other secrets in repository data or
+custom options; redaction is not an alternative to access controls or encryption.
+
+Optional notifications cover configuration errors, failed backups, partial backup
+warnings, and compression errors. Webhook requests have a bounded overall timeout.
+Clean cycles stay silent. A failed webhook is reported without exposing its URL.
+
+The Docker health check requires a successful snapshot for every configured
+account within the last 48 hours. A running container alone does not prove backup
+success. Docker health status itself does not trigger a restart.
+
+| Exit code | Meaning |
 |---|---|
-| `0` | still running — the scheduler does not exit on its own |
-| `78` | unusable configuration (`EX_CONFIG`); a card is sent before exiting |
-| `143` | `SIGTERM` received, shut down cleanly |
+| `78` | Invalid configuration; notification attempted before exit |
+| `143` | Clean shutdown requested by SIGTERM/SIGINT |
+| `1` | Unexpected supervisor or persistent storage failure |
 
-`78` is deliberately distinct from a failed backup run so that monitoring can tell
-"misconfigured" from "crashed" without parsing logs. With a `restart` policy in place
-a misconfigured container loops — `docker ps` shows `Restarting`, and
-`docker logs --tail 5` shows the reason as the last line. The webhook attempt is
-bounded, so an unreachable endpoint delays the exit by seconds, not indefinitely.
+SIGTERM reaches the current process group, including Git/tar grandchildren; after
+a five-second grace period remaining children are killed. Interrupted snapshots
+retain failure status. Temporary credentials are removed during shutdown.
 
-> [!WARNING]
-> Do not commit webhook URLs or GitHub tokens; provide them through the live stack environment.
+Backups are not encrypted by this application. Restrict host access, encrypt the
+backup storage, and maintain an independent/off-host copy and periodic restore test.
 
-## Customize what gets backed up
+## Images and automatic updates
 
-The underlying [python-github-backup](https://github.com/josegonzalez/python-github-backup)
-library [has a lot of options](https://github.com/josegonzalez/python-github-backup#usage)
-for what is backed up. They are exposed one-for-one through `BACKUP_OPTIONS`.
-By default the container backs up everything with `--all --private --gists` —
-repositories, issues, pull requests, labels, and so on.
+| Tag | Meaning |
+|---|---|
+| `stable` | Newest plain release, including tested OS-security rebuilds |
+| `X.Y.Z` | First published build of that release; not overwritten by rebuilds |
+| `X.Y.Z-rc1` | First published prerelease build; never promoted to `stable` |
+| `latest` | Current `master`, potentially unreleased |
+| `master-<sha>` | First published build of that master commit |
+| `<full commit sha>` | First published manual preview build of that commit |
+| `build-<run>-<attempt>-<channel>` | Exact multi-architecture build, also on security rebuilds |
 
-To back up only repository code (including private repositories), set in your
-`docker-compose.yml` environment:
+Use `stable` for production with the controlled updater, or pin an image digest
+when you require immutable contents. A Git commit or version alone does not
+identify new OS packages; every rebuild has a unique build tag and digest.
 
-```yaml
-environment:
-  BACKUP_OPTIONS: "--private --repositories"
+The publishing workflow runs on master pushes, release tags, PRs, manual dispatch
+and weekly on Monday. PRs only build/test. Scheduled/manual-master runs build
+master/latest and the newest supported release/stable **from separate immutable
+source SHAs**. Release tags must be on master; non-version tags are skipped.
+Docker tags do not support SemVer `+build` metadata, so those tags are skipped too.
+
+The first hardened release bootstraps stable-security rebuilds. Releases must
+contain `.security-rebuild-version` with value `1`. An older release is deliberately
+not promoted by a scheduled build; the workflow reports the required release.
+
+Each architecture is built once into an OCI archive with SBOM/provenance, scanned
+for HIGH/CRITICAL vulnerabilities, and smoke/security/restore-tested. Publication
+uploads these same archives with their original manifests and attestations. Only
+the publish job can write to GHCR. Channel promotion is serialized and checks
+current Git refs plus build sequence to prevent stale jobs from rolling back tags.
+
+Dependabot proposes weekly updates for Actions, Alpine and the hash-pinned Python
+dependency. OS packages are refreshed on every publishing build (`pull`, fresh
+package installation and upgrade); runtime installers are removed. A scan failure
+blocks publication, including when no upstream fix is available.
+
+**Publishing a fresh image does not update a running container.**
+The opt-in [deployment updater](ops/update.sh) holds a maintenance lease after a
+successful idle cycle, pulls/recreates the service, verifies a successful first
+backup through Docker health, and rolls back on failure. See
+[deployment automation and rollback](docs/operations.md#deployment-updates).
+
+## Development
+
+```sh
+docker build --pull -t github-backup-docker:test .
+./ci/smoke-test.sh github-backup-docker:test
+python3 -m unittest discover -v -s ci -p test_pipeline.py
 ```
 
-## Compression
+`exec.sh` applies the private umask and launches `backup.py`. The supervisor uses
+Python's standard library; `secure_github_backup.py` adapts upstream's Git URLs,
+and `git_credential.py` implements Git's credential protocol. Upstream behavior is
+otherwise retained. Security tests exercise the installed wheel and real Git.
 
-Set `COMPRESSION` to pack each finished snapshot into
-`/srv/var/<TIMESTAMP>/<TIMESTAMP>_<user_or_org>.tar.gz` and remove the uncompressed
-directory. If the `tar` run fails, the directory is kept and the failure is logged.
+## Upstream and license
 
-Compression is **off** when the value is empty or one of `no`, `false`, `off`, `0`
-(case-insensitive). Every other value turns it **on**, so a descriptive setting such
-as `COMPRESSION=GZIP` works as expected.
+This fork is maintained by wus-technik and originated from
+[umputun/github-backup-docker](https://github.com/umputun/github-backup-docker).
+That wrapper is no longer actively tracked; its attribution and provenance remain.
+[python-github-backup](https://github.com/josegonzalez/python-github-backup) supplies
+the GitHub backup implementation and is kept pinned and tested here.
 
-## Prepared images
-
-[GitHub Packages](https://github.com/orgs/wus-technik/packages/container/package/github-backup-docker) — `ghcr.io/wus-technik/github-backup-docker`
-
-| Tag | Content |
-|---|---|
-| `stable` | the newest released version — **use this in production** |
-| `X.Y.Z` | a specific release |
-| `latest` | the current state of `master` (staging, may be unreleased) |
-| `master-<sha>` | a specific `master` build |
-
-<details>
-<summary><b>Release semantics</b></summary>
-
-<br>
-
-Pushing `master` mints `:latest` and `:master-<short sha>`. Pushing a semver tag
-`X.Y.Z` mints `:X.Y.Z` and, if it is the newest plain release, `:stable` — prereleases
-like `X.Y.Z-rc1` get their own tag but never `:stable`. A manual dispatch on a tag
-re-mints it (this is how `:stable` can be restored without re-tagging), and a manual
-dispatch on a branch builds `:<full commit sha>`. Non-semver tags build nothing.
-Every publishing run first builds a `linux/amd64` image and gates the push on the
-CI smoke test.
-
-</details>
-
-## Build from the source
-
-```bash
-git clone https://github.com/wus-technik/github-backup-docker
-docker-compose build
-```
-
-CI runs `shellcheck`, `sh -n`, and compose validation on every push, then builds the
-image and runs `ci/smoke-test.sh` against it — the one check that exercises the real
-`github-backup` binary with the exact arguments `exec.sh` builds.
-
-## Upstream
-
-This fork is maintained by [wus-technik](https://github.com/wus-technik) and started out
-from [umputun/github-backup-docker](https://github.com/umputun/github-backup-docker).
-The upstream project is not actively tracked anymore, but provenance references and
-attribution are kept.
-
----
-
-## License
-
-[MIT](LICENSE) — Copyright (c) 2019 Umputun; Modifications Copyright (c) 2026 wus-technik
-
-<div align="center">
-<sub>Not affiliated with GitHub Inc. Backs up only the accounts and organizations your token can reach.</sub>
-</div>
+[MIT](LICENSE) — Copyright (c) 2019 Umputun; Modifications Copyright (c) 2026 wus-technik.
+Not affiliated with GitHub Inc.
