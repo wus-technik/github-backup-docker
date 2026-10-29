@@ -1,2 +1,7 @@
 /var
 .env
+.env.*
+/secrets/
+__pycache__/
+*.pyc
+.venv/

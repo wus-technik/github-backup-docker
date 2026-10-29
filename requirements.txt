@@ -1,0 +1,2 @@
+github-backup==0.65.1 \
+    --hash=sha256:07b054a1e0cc6e4665d8964bfbe30e02a7c6dce43a4a8e480022043836bbc49d

@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Security
+- Git clones now use a host-scoped, read-only credential helper. Access tokens no longer appear in Git command arguments or repository remote URLs. Logs and notification payloads are redacted before writing or sending.
+- Added file-based secrets (`TOKEN_FILE`, `NOTIFY_WEBHOOK_URL_FILE`), a non-root runtime (UID/GID 10001), private file permissions, tini, and a hardened Compose configuration with a read-only root filesystem and no capabilities.
+- Removed pip from the runtime virtualenv and hash-verified the pinned upstream wheel. Dependency updates now cover Python, Docker and GitHub Actions; actions are pinned to verified commit SHAs.
+
+### Changed
+- The entrypoint delegates scheduling, process groups, notifications and retention to a standard-library Python supervisor.
+- Retention is per account and separates successful snapshots (`MAX_BACKUPS`) from failed/incomplete/warning snapshots (`MAX_FAILED_BACKUPS`, default 3). Legacy snapshots without status records are preserved for manual verification.
+- Only successful backups are compressed. Compression failure notifies and preserves the original data. Signals during backup, compression, notifications and sleep terminate promptly and clean up child processes and temporary credentials.
+- The publishing pipeline builds and tests all three architectures, scans for HIGH/CRITICAL vulnerabilities, and publishes the verified OCI archives with SBOM/provenance instead of rebuilding. Only the publish job has registry write access.
+- Weekly builds refresh master/latest and the newest supported release/stable separately. Release and commit tags are write-once; unique build tags identify security rebuilds. Serialized, freshness-checked promotion prevents channel rollback.
+
+### Added
+- Successful-backup health check, deterministic security/restore/retention/pipeline tests, and an opt-in deployment update script with an idle-cycle maintenance lease, health verification and rollback.
+- Migration, secret handling, release bootstrap and deployment automation instructions in `docs/operations.md`.
+
 ## [1.2.5] - 2026-09-11
 
 ### Fixed

@@ -52,7 +52,9 @@ start_and_wait_for_cycle() {
     CONTAINER="github-backup-smoke-$$"
     docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
     # shellcheck disable=SC2086
-    docker run -d --name "${CONTAINER}" $1 "${IMAGE}" >/dev/null
+    # The dummy credential/API checks must not wait for GitHub's rate-limit
+    # reset (which can be an hour). All cycle checks select repositories only.
+    docker run -d --name "${CONTAINER}" $1 -e 'BACKUP_OPTIONS=--repositories --retries=0' "${IMAGE}" >/dev/null
 
     waited=0
     while [ "${waited}" -lt 120 ]; do
@@ -193,7 +195,7 @@ check_retention() {
 
     # Seeded with far-future run dates so they sort newest regardless of how
     # many snapshots the container's own cycles create in the meantime.
-    docker exec "${CONTAINER}" sh -c 'mkdir -p /srv/var/20990101-000000 /srv/var/20990102-000000 /srv/var/20990103-000000' >/dev/null
+    docker exec "${CONTAINER}" python3 -c 'import sys; sys.path.insert(0,"/srv"); from backup import atomic_json; from pathlib import Path; [(atomic_json(Path("/srv/var")/stamp/".status/User_wus-technik-smoke-test-does-not-exist.json", {"kind":"User","name":"wus-technik-smoke-test-does-not-exist","state":"success"})) for stamp in ("20990101-000000","20990102-000000","20990103-000000")]' >/dev/null
 
     docker restart -t 5 "${CONTAINER}" >/dev/null
     waited=0
@@ -211,7 +213,7 @@ check_retention() {
         return 1
     fi
 
-    remaining=$(docker exec "${CONTAINER}" sh -c 'ls -1 /srv/var | grep "^20" | sort | paste -sd" " -')
+    remaining=$(docker exec "${CONTAINER}" sh -c 'ls -1 /srv/var | grep "^2099" | sort | paste -sd" " -')
     drop_container
 
     if [ "${remaining}" = "20990102-000000 20990103-000000" ]; then
@@ -229,9 +231,8 @@ check_retention
 #
 #    Any value that is not a negative spelling enables compression, so a
 #    descriptive setting like GZIP keeps working while "no" turns it off.
-#    The archive is written even when the backup itself failed, as long as
-#    github-backup created the output directory -- which is what makes this
-#    checkable with a dummy token.
+#    A failed backup must never be archived as a completed snapshot. Successful
+#    compression and restoration are exercised in test_security.py.
 # ---------------------------------------------------------------------------
 
 check_compression() {
@@ -251,8 +252,8 @@ check_compression() {
 
     if [ "${mode}" != "compression=${expected}" ]; then
         fail "${label}: reported '${mode}', expected 'compression=${expected}'"
-    elif [ "${expected}" = "enabled" ] && [ "${archives}" -eq 0 ]; then
-        fail "${label}: reported enabled but wrote no archive"
+    elif [ "${expected}" = "enabled" ] && [ "${archives}" -ne 0 ]; then
+        fail "${label}: archived a failed backup as if it had completed"
     elif [ "${expected}" = "disabled" ] && [ "${archives}" -ne 0 ]; then
         fail "${label}: reported disabled but wrote ${archives} archive(s)"
     else
@@ -405,6 +406,29 @@ check_sigterm() {
 }
 
 check_sigterm
+
+# Deterministic security/restore tests supplement the real API argument checks.
+# Copy into a stopped container instead of mounting a host path (also works on
+# Docker Desktop and read-only CI workspaces).
+if start_and_wait_for_cycle "--read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev,size=64m --tmpfs /srv/var:rw,uid=10001,gid=10001,mode=700 -e TOKEN=ghp_x -e BACKUP_OPTIONS=--repositories -e GITHUB_USER=wus-technik-smoke-test-does-not-exist"; then
+    output=$(docker logs "${CONTAINER}" 2>&1)
+    if echo "$output" | grep -q 'sleep for 1 day'; then
+        pass "read-only filesystem and dropped capabilities support a full cycle"
+    else
+        fail "hardened container did not complete a cycle"
+    fi
+fi
+drop_container
+CONTAINER="github-backup-security-$$"
+docker create --name "${CONTAINER}" --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev,size=64m --entrypoint python3 "${IMAGE}" -m unittest discover -v -s tests -p 'test_*.py' >/dev/null
+docker cp "$(dirname "$0")/." "${CONTAINER}:/tests"
+docker cp "$(dirname "$0")/../ops/." "${CONTAINER}:/ops"
+docker start -a "${CONTAINER}" || fail "security regression tests failed"
+test_rc=$(docker inspect -f '{{.State.ExitCode}}' "${CONTAINER}")
+if [ "${test_rc}" -ne 0 ]; then
+    fail "security test container exited ${test_rc}"
+fi
+drop_container
 
 # ---------------------------------------------------------------------------
 

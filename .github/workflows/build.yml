@@ -1,133 +1,148 @@
 name: Build and Push Container
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - master
-    tags:
-      - "*"
+    branches: [master]
+    tags: ['*']
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 4 * * 1'
+
+permissions: {}
 
 jobs:
-  build-and-push:
+  plan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      publish: ${{ steps.plan.outputs.publish }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve sources and channels
+        id: plan
+        run: python3 ci/plan.py
 
+  build:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.sha }}
+          persist-credentials: false
+      - name: Validate scripts and compose
+        run: |
+          for script in exec.sh ci/smoke-test.sh ops/update.sh; do sh -n "$script"; done
+          shellcheck exec.sh ci/smoke-test.sh ops/update.sh
+          python3 -m compileall -q backup.py secure_github_backup.py git_credential.py ci
+          docker compose config --quiet
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build OCI archive with attestations
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          pull: true
+          no-cache: true
+          build-args: PACKAGE_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
+          outputs: type=oci,dest=${{ runner.temp }}/image.tar
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.revision=${{ matrix.sha }}
+            org.opencontainers.image.version=${{ matrix.version || matrix.sha }}
+      - name: Expand OCI layout for the scanner
+        env:
+          ARCHIVE: ${{ runner.temp }}/image.tar
+          LAYOUT: ${{ runner.temp }}/image-layout
+        run: |
+          mkdir "$LAYOUT"
+          tar -xf "$ARCHIVE" -C "$LAYOUT"
+      - name: Scan the archive before publication
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          input: ${{ runner.temp }}/image-layout
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: false
+          timeout: 10m
+          cache: false
+        env:
+          TRIVY_PLATFORM: ${{ matrix.platform }}
+      - name: Load the same OCI image for smoke tests
+        env:
+          ARCH: ${{ matrix.arch }}
+          ARCHIVE: ${{ runner.temp }}/image.tar
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+          case "$ARCH" in
+            armv7) skopeo --override-arch arm --override-variant v7 copy "oci-archive:$ARCHIVE" docker-daemon:github-backup-docker:test ;;
+            *) skopeo --override-arch "$ARCH" copy "oci-archive:$ARCHIVE" docker-daemon:github-backup-docker:test ;;
+          esac
+      - name: Smoke, security and restore tests
+        timeout-minutes: 20
+        env:
+          DOCKER_DEFAULT_PLATFORM: ${{ matrix.platform }}
+        run: ./ci/smoke-test.sh github-backup-docker:test
+      - name: Upload the verified archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.id }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/image.tar
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, build]
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: image-publish
+    # Serialize alias promotion, preserving queued releases as well as schedules.
+    concurrency:
+      group: image-promotion
+      queue: max
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
-
     steps:
-      - name: Checkout repository (full history for tags)
-        uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
-      - name: Compute image tags
-        id: meta
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          IMAGE="ghcr.io/${GITHUB_REPOSITORY}"
-          TAG="${GITHUB_REF_NAME}"
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-
-          echo "GITHUB_EVENT_NAME=${GITHUB_EVENT_NAME}"
-          echo "GITHUB_REF=${GITHUB_REF}"
-          echo "GITHUB_REF_NAME=${GITHUB_REF_NAME}"
-          echo "IMAGE=${IMAGE}"
-
-          emit_tags() {
-            {
-              echo "skip=false"
-              echo "tags<<TAGS_EOF"
-              printf '%s\n' "$@"
-              echo "TAGS_EOF"
-            } >> "$GITHUB_OUTPUT"
-            echo "resolved tags: $*"
-          }
-
-          # Staging: every push to master moves :latest
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/master" ]]; then
-            emit_tags "${IMAGE}:latest" "${IMAGE}:master-${SHORT_SHA}"
-            exit 0
-          fi
-
-          # Anything that is not a tag (e.g. manual run on a branch): SHA only
-          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
-            emit_tags "${IMAGE}:${GITHUB_SHA}"
-            exit 0
-          fi
-
-          # Releases: accept semver-like tags X.Y.Z with optional -prerelease or +build
-          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "TAG did NOT match semver -> skipping"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          git fetch --tags --force
-
-          # Prerelease tags (e.g. 1.3.0-rc1) never carry :stable, even when they
-          # sort above the newest release; they get their own image tag only.
-          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            emit_tags "${IMAGE}:${TAG}"
-            exit 0
-          fi
-
-          # :stable tracks the newest plain release (sort -V is unambiguous
-          # for X.Y.Z without prerelease suffixes)
-          LATEST_TAG="$(git tag -l \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-            | sort -V \
-            | tail -n 1)"
-
-          echo "LATEST_TAG=${LATEST_TAG}"
-
-          if [[ "$TAG" == "$LATEST_TAG" ]]; then
-            emit_tags "${IMAGE}:${TAG}" "${IMAGE}:stable"
-          else
-            emit_tags "${IMAGE}:${TAG}"
-          fi
-
-      - name: Set up QEMU
-        if: steps.meta.outputs.skip != 'true'
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        if: steps.meta.outputs.skip != 'true'
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        if: steps.meta.outputs.skip != 'true'
-        uses: docker/login-action@v4
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build amd64 image for smoke test
-        if: steps.meta.outputs.skip != 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          load: true
-          platforms: linux/amd64
-          tags: github-backup-docker:smoke
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Smoke test image
-        if: steps.meta.outputs.skip != 'true'
-        timeout-minutes: 15
-        run: ./ci/smoke-test.sh github-backup-docker:smoke
-
-      - name: Build and push image
-        if: steps.meta.outputs.skip != 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
+      - name: Publish verified archives and promote current channels
+        env:
+          TARGETS: ${{ needs.plan.outputs.targets }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+          python3 ci/publish.py

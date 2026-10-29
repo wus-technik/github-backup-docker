@@ -1,25 +1,39 @@
 services:
   github-backup:
-    build: .
     image: ghcr.io/wus-technik/github-backup-docker:stable
-    container_name: "github-backup"
-    hostname: "github-backup"
-    restart: always
-
+    container_name: github-backup
+    hostname: github-backup
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
-
     environment:
-      - GITHUB_USER=        # comma-separated GitHub usernames, e.g. myuser,anotheruser
-      - GITHUB_ORG=         # comma-separated GitHub orgs (token must have org access)
-      - TOKEN=${GITHUB_ACCESS_TOKEN}
-      - MAX_BACKUPS=10
-      - TIME_ZONE=America/Chicago
-      - BACKUP_OPTIONS=--all --private --gists
-      - NOTIFY_WEBHOOK_URL= # optional Teams/Power Automate webhook for failure and warning notifications
-      - COMPRESSION=no      # tar.gz each snapshot; no/false/off/0 or empty disables it
+      GITHUB_USER: ""       # comma-separated GitHub account names
+      GITHUB_ORG: ""        # comma-separated organizations
+      TOKEN_FILE: /run/secrets/github_token
+      MAX_BACKUPS: "10"     # successful snapshots per account
+      MAX_FAILED_BACKUPS: "3"
+      TIME_ZONE: Europe/Berlin
+      BACKUP_OPTIONS: --all --private --gists
+      COMPRESSION: "no"
+      # NOTIFY_WEBHOOK_URL_FILE: /run/secrets/notify_webhook
+    secrets:
+      - github_token
+      # - notify_webhook
     volumes:
       - ./var:/srv/var
+
+secrets:
+  github_token:
+    file: ./secrets/github_token
+  # notify_webhook:
+  #   file: ./secrets/notify_webhook
