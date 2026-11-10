@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-10
+
 ### Security
 - Git clones now use a host-scoped, read-only credential helper. Access tokens no longer appear in Git command arguments or repository remote URLs. Logs and notification payloads are redacted before writing or sending.
 - Added file-based secrets (`TOKEN_FILE`, `NOTIFY_WEBHOOK_URL_FILE`), a non-root runtime (UID/GID 10001), private file permissions, tini, and a hardened Compose configuration with a read-only root filesystem and no capabilities.
