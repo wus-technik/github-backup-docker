@@ -1,2 +1,3 @@
-github-backup==0.65.1 \
-    --hash=sha256:07b054a1e0cc6e4665d8964bfbe30e02a7c6dce43a4a8e480022043836bbc49d
+github-backup==0.67.0 \
+    --hash=sha256:d1a401ddd3531ab394a5a8de78df9ef3504e8b8a29a50992ae9e31e5556cbb11 \
+    --hash=sha256:dc112537678851d698037d07b4fbe3adc00cb3e8f1fc1f9a1c1ef8b3f1494086
